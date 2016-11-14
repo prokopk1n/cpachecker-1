@@ -62,6 +62,8 @@ import org.sosy_lab.cpachecker.core.counterexample.MemoryName;
 import org.sosy_lab.cpachecker.cpa.arg.ARGPath;
 import org.sosy_lab.cpachecker.cpa.arg.ARGPath.PathIterator;
 import org.sosy_lab.cpachecker.cpa.smg.objects.SMGObject;
+import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGFeasibilityChecker;
+import org.sosy_lab.cpachecker.exceptions.CPAException;
 import org.sosy_lab.cpachecker.util.AbstractStates;
 import org.sosy_lab.cpachecker.util.Pair;
 
@@ -88,6 +90,18 @@ public class SMGConcreteErrorPathAllocator {
 
   public SMGConcreteErrorPathAllocator(AssumptionToEdgeAllocator pAssumptionToEdgeAllocator) {
     assumptionToEdgeAllocator = pAssumptionToEdgeAllocator;
+  }
+
+  public CFAPathWithAssumptions createFullModelForPath(SMGFeasibilityChecker checker,
+      ARGPath pPath) throws CPAException, InterruptedException {
+
+    return allocateAssignmentsToPath(checker.createMostPreciseSMGStatePath(pPath));
+  }
+
+  public ConcreteStatePath createFullModelConcreteStatePath(SMGFeasibilityChecker checker,
+      ARGPath pPath) throws CPAException, InterruptedException {
+
+    return createConcreteStatePath(checker.createMostPreciseSMGStatePath(pPath));
   }
 
   public ConcreteStatePath allocateAssignmentsToPath(ARGPath pPath) {
@@ -150,8 +164,8 @@ public class SMGConcreteErrorPathAllocator {
 
             // last edge of (dynamic) multi edge
           } else {
-            result.addAll(Lists.reverse(intermediateStates));
             result.add(new SingleConcreteState(innerEdge, state));
+            result.addAll(Lists.reverse(intermediateStates));
           }
         }
 

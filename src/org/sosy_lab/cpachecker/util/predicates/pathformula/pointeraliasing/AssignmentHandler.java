@@ -57,16 +57,17 @@ import org.sosy_lab.cpachecker.util.predicates.pathformula.pointeraliasing.Expre
 import org.sosy_lab.cpachecker.util.predicates.smt.ArrayFormulaManagerView;
 import org.sosy_lab.cpachecker.util.predicates.smt.BooleanFormulaManagerView;
 import org.sosy_lab.cpachecker.util.predicates.smt.FormulaManagerView;
-import org.sosy_lab.solver.api.ArrayFormula;
-import org.sosy_lab.solver.api.BooleanFormula;
-import org.sosy_lab.solver.api.Formula;
-import org.sosy_lab.solver.api.FormulaType;
+import org.sosy_lab.java_smt.api.ArrayFormula;
+import org.sosy_lab.java_smt.api.BooleanFormula;
+import org.sosy_lab.java_smt.api.Formula;
+import org.sosy_lab.java_smt.api.FormulaType;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -131,44 +132,36 @@ class AssignmentHandler {
    * @throws UnrecognizedCCodeException If the C code was unrecognizable.
    * @throws InterruptedException If the execution was interrupted.
    */
-  BooleanFormula handleAssignment(final CLeftHandSide lhs,
-                                  final CLeftHandSide lhsForChecking,
-                                  final @Nullable CRightHandSide rhs,
-                                  final boolean batchMode,
-                                  final @Nullable Set<CType> destroyedTypes)
-  throws UnrecognizedCCodeException, InterruptedException {
+  BooleanFormula handleAssignment(
+      final CLeftHandSide lhs,
+      final CLeftHandSide lhsForChecking,
+      final CType lhsType,
+      final @Nullable CRightHandSide rhs,
+      final boolean batchMode,
+      final @Nullable Set<CType> destroyedTypes)
+      throws UnrecognizedCCodeException, InterruptedException {
     if (!conv.isRelevantLeftHandSide(lhsForChecking)) {
       // Optimization for unused variables and fields
-      return conv.bfmgr.makeBoolean(true);
+      return conv.bfmgr.makeTrue();
     }
 
-    final CType lhsType = typeHandler.getSimplifiedType(lhs);
     final CType rhsType =
         rhs != null ? typeHandler.getSimplifiedType(rhs) : CNumericTypes.SIGNED_CHAR;
 
     // RHS handling
-    final CExpressionVisitorWithPointerAliasing rhsVisitor = new CExpressionVisitorWithPointerAliasing(conv, edge, function, ssa, constraints, errorConditions, pts);
+    final CExpressionVisitorWithPointerAliasing rhsVisitor = newExpressionVisitor();
 
-    final Expression rhsExpression;
-    if (rhs == null) {
-      rhsExpression = Value.nondetValue();
-    } else {
-      CRightHandSide r = rhs;
-      if (r instanceof CExpression) {
-        r = conv.convertLiteralToFloatIfNecessary((CExpression)r, lhsType);
-      }
-      rhsExpression = r.accept(rhsVisitor);
-    }
+    final Expression rhsExpression = createRHSExpression(rhs, lhsType, rhsVisitor);
 
     pts.addEssentialFields(rhsVisitor.getInitializedFields());
     pts.addEssentialFields(rhsVisitor.getUsedFields());
     final List<Pair<CCompositeType, String>> rhsAddressedFields = rhsVisitor.getAddressedFields();
-    final Map<String, CType> rhsUsedDeferredAllocationPointers = rhsVisitor.getUsedDeferredAllocationPointers();
+    final Map<String, CType> rhsLearnedPointersTypes = rhsVisitor.getLearnedPointerTypes();
 
     // LHS handling
-    final CExpressionVisitorWithPointerAliasing lhsVisitor = new CExpressionVisitorWithPointerAliasing(conv, edge, function, ssa, constraints, errorConditions, pts);
+    final CExpressionVisitorWithPointerAliasing lhsVisitor = newExpressionVisitor();
     final Location lhsLocation = lhs.accept(lhsVisitor).asLocation();
-    final Map<String, CType> lhsUsedDeferredAllocationPointers = lhsVisitor.getUsedDeferredAllocationPointers();
+    final Map<String, CType> lhsLearnedPointerTypes = lhsVisitor.getLearnedPointerTypes();
     pts.addEssentialFields(lhsVisitor.getInitializedFields());
     pts.addEssentialFields(lhsVisitor.getUsedFields());
     // the pattern matching possibly aliased locations
@@ -178,9 +171,14 @@ class AssignmentHandler {
 
     if (conv.options.revealAllocationTypeFromLHS() || conv.options.deferUntypedAllocations()) {
       DynamicMemoryHandler memoryHandler = new DynamicMemoryHandler(conv, edge, ssa, pts, constraints, errorConditions);
-      memoryHandler.handleDeferredAllocationsInAssignment(lhs, rhs,
-          lhsLocation, rhsExpression, lhsType,
-          lhsUsedDeferredAllocationPointers, rhsUsedDeferredAllocationPointers);
+      memoryHandler.handleDeferredAllocationsInAssignment(
+          lhs,
+          rhs,
+          rhsExpression,
+          lhsType,
+          lhsVisitor,
+          lhsLearnedPointerTypes,
+          rhsLearnedPointersTypes);
     }
 
     final BooleanFormula result =
@@ -196,6 +194,35 @@ class AssignmentHandler {
       pts.addField(field.getFirst(), field.getSecond());
     }
     return result;
+  }
+
+  private Expression createRHSExpression(
+      CRightHandSide pRhs, CType pLhsType, CExpressionVisitorWithPointerAliasing pRhsVisitor)
+      throws UnrecognizedCCodeException {
+    if (pRhs == null) {
+      return Value.nondetValue();
+    }
+    CRightHandSide r = pRhs;
+    if (r instanceof CExpression) {
+      r = conv.convertLiteralToFloatIfNecessary((CExpression) r, pLhsType);
+    }
+    return r.accept(pRhsVisitor);
+  }
+
+  private CExpressionVisitorWithPointerAliasing newExpressionVisitor() {
+    return new CExpressionVisitorWithPointerAliasing(
+        conv, edge, function, ssa, constraints, errorConditions, pts);
+  }
+
+  BooleanFormula handleAssignment(
+      final CLeftHandSide lhs,
+      final CLeftHandSide lhsForChecking,
+      final @Nullable CRightHandSide rhs,
+      final boolean batchMode,
+      final @Nullable Set<CType> destroyedTypes)
+      throws UnrecognizedCCodeException, InterruptedException {
+    return handleAssignment(
+        lhs, lhsForChecking, typeHandler.getSimplifiedType(lhs), rhs, batchMode, destroyedTypes);
   }
 
   /**
@@ -231,10 +258,10 @@ class AssignmentHandler {
   private BooleanFormula handleInitializationAssignmentsWithoutQuantifier(
       final CLeftHandSide variable, final List<CExpressionAssignmentStatement> assignments)
       throws UnrecognizedCCodeException, InterruptedException {
-    CExpressionVisitorWithPointerAliasing lhsVisitor = new CExpressionVisitorWithPointerAliasing(conv, edge, function, ssa, constraints, errorConditions, pts);
+    CExpressionVisitorWithPointerAliasing lhsVisitor = newExpressionVisitor();
     final Location lhsLocation = variable.accept(lhsVisitor).asLocation();
     final Set<CType> updatedTypes = new HashSet<>();
-    BooleanFormula result = conv.bfmgr.makeBoolean(true);
+    BooleanFormula result = conv.bfmgr.makeTrue();
     for (CExpressionAssignmentStatement assignment : assignments) {
       final CLeftHandSide lhs = assignment.getLeftHandSide();
       result = conv.bfmgr.and(result, handleAssignment(lhs, lhs,
@@ -280,14 +307,10 @@ class AssignmentHandler {
     final CType lhsType = typeHandler.getSimplifiedType(pAssignments.get(0).getLeftHandSide());
     final CType rhsType = typeHandler.getSimplifiedType(pAssignments.get(0).getRightHandSide());
 
-    final CExpressionVisitorWithPointerAliasing rhsVisitor =
-        new CExpressionVisitorWithPointerAliasing(conv, edge, function, ssa, constraints,
-            errorConditions, pts);
+    final CExpressionVisitorWithPointerAliasing rhsVisitor = newExpressionVisitor();
     final Expression rhsValue = pAssignments.get(0).getRightHandSide().accept(rhsVisitor);
 
-    final CExpressionVisitorWithPointerAliasing lhsVisitor =
-        new CExpressionVisitorWithPointerAliasing(
-            conv, edge, function, ssa, constraints, errorConditions, pts);
+    final CExpressionVisitorWithPointerAliasing lhsVisitor = newExpressionVisitor();
     final Location lhsLocation = pLeftHandSide.accept(lhsVisitor).asLocation();
 
     if (!rhsValue.isValue()
@@ -361,12 +384,12 @@ class AssignmentHandler {
       final List<CExpressionAssignmentStatement> pAssignments,
       final CExpressionVisitorWithPointerAliasing pRhsVisitor)
       throws UnrecognizedCCodeException {
-    Value tmp = null;
+    Expression tmp = null;
     for (CExpressionAssignmentStatement assignment : pAssignments) {
       if (tmp == null) {
-        tmp = assignment.getRightHandSide().accept(pRhsVisitor).asValue();
+        tmp = assignment.getRightHandSide().accept(pRhsVisitor);
       }
-      if (!tmp.equals(assignment.getRightHandSide().accept(pRhsVisitor).asValue())) {
+      if (!tmp.equals(assignment.getRightHandSide().accept(pRhsVisitor))) {
         return false;
       }
     }
@@ -511,7 +534,7 @@ class AssignmentHandler {
               ? Integer.min(options.maxArrayLength(), lvalueLength.getAsInt())
               : options.defaultArrayLength();
 
-      result = bfmgr.makeBoolean(true);
+      result = bfmgr.makeTrue();
       int offset = 0;
       for (int i = 0; i < length; ++i) {
         final Pair<AliasedLocation, CType> newLvalue = shiftArrayLvalue(lvalue.asAliased(), offset, lvalueElementType);
@@ -542,10 +565,10 @@ class AssignmentHandler {
         throw new UnrecognizedCCodeException("Impossible structure assignment due to incompatible types:"
             + " assignment of " + rvalue + " with type "+ rvalueType + " to " + lvalue + " with type "+ lvalueType, edge);
       }
-      result = bfmgr.makeBoolean(true);
-      int offset = 0;
+      result = bfmgr.makeTrue();
       for (final CCompositeTypeMemberDeclaration memberDeclaration : lvalueCompositeType.getMembers()) {
         final String memberName = memberDeclaration.getName();
+        final int offset = typeHandler.getOffset(lvalueCompositeType, memberName);
         final CType newLvalueType = typeHandler.getSimplifiedType(memberDeclaration);
         // Optimizing away the assignments from uninitialized fields
         if (conv.isRelevantField(lvalueCompositeType, memberName)
@@ -579,10 +602,6 @@ class AssignmentHandler {
                                                        useOldSSAIndices,
                                                        updatedTypes,
                                                        updatedVariables));
-        }
-
-        if (lvalueCompositeType.getKind() == ComplexTypeKind.STRUCT) {
-          offset += conv.getSizeof(memberDeclaration.getType());
         }
       }
       return result;
@@ -629,23 +648,6 @@ class AssignmentHandler {
     Preconditions.checkArgument(isSimpleType(rvalueType),
                                 "To assign to/from arrays/structures/unions use makeDestructiveAssignment");
 
-    final Formula value;
-    switch (rvalue.getKind()) {
-    case ALIASED_LOCATION:
-      value = conv.makeDereference(rvalueType, rvalue.asAliasedLocation().getAddress(), ssa, errorConditions);
-      break;
-    case UNALIASED_LOCATION:
-      value = conv.makeVariable(rvalue.asUnaliasedLocation().getVariableName(), rvalueType, ssa);
-      break;
-    case DET_VALUE:
-      value = rvalue.asValue().getValue();
-      break;
-    case NONDET:
-      value = null;
-      break;
-    default: throw new AssertionError();
-    }
-
     assert !(lvalueType instanceof CFunctionType) : "Can't assign to functions";
 
     final String targetName = !lvalue.isAliased() ? lvalue.asUnaliased().getVariableName() : CToFormulaConverterWithPointerAliasing.getPointerAccessName(lvalueType);
@@ -656,13 +658,16 @@ class AssignmentHandler {
             conv.getFreshIndex(targetName, lvalueType, ssa);
     final BooleanFormula result;
 
-    rvalueType = implicitCastToPointer(rvalueType);
-    final Formula rhs = value != null ? conv.makeCast(rvalueType, lvalueType, value, constraints, edge) : null;
+    final Optional<Formula> value = getValueFormula(rvalueType, rvalue);
+    final Formula rhs =
+        value.isPresent()
+            ? conv.makeCast(rvalueType, lvalueType, value.get(), constraints, edge)
+            : null;
     if (!lvalue.isAliased()) { // Unaliased LHS
       if (rhs != null) {
         result = fmgr.assignment(fmgr.makeVariable(targetType, targetName, newIndex), rhs);
       } else {
-        result = bfmgr.makeBoolean(true);
+        result = bfmgr.makeTrue();
       }
 
       if (updatedVariables != null) {
@@ -675,7 +680,7 @@ class AssignmentHandler {
             conv.ptsMgr.makePointerAssignment(
                 targetName, targetType, oldIndex, newIndex, address, rhs);
       } else {
-        result = bfmgr.makeBoolean(true);
+        result = bfmgr.makeTrue();
       }
 
       if (updatedTypes != null) {
@@ -684,6 +689,25 @@ class AssignmentHandler {
     }
 
     return result;
+  }
+
+  private Optional<Formula> getValueFormula(CType pRValueType, Expression pRValue)
+      throws AssertionError {
+    switch (pRValue.getKind()) {
+      case ALIASED_LOCATION:
+        return Optional.of(
+            conv.makeDereference(
+                pRValueType, pRValue.asAliasedLocation().getAddress(), ssa, errorConditions));
+      case UNALIASED_LOCATION:
+        return Optional.of(
+            conv.makeVariable(pRValue.asUnaliasedLocation().getVariableName(), pRValueType, ssa));
+      case DET_VALUE:
+        return Optional.of(pRValue.asValue().getValue());
+      case NONDET:
+        return Optional.empty();
+      default:
+        throw new AssertionError();
+    }
   }
 
   /**

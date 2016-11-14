@@ -39,6 +39,7 @@ import org.sosy_lab.cpachecker.core.reachedset.ReachedSet;
 import org.sosy_lab.cpachecker.core.reachedset.UnmodifiableReachedSet;
 import org.sosy_lab.cpachecker.cpa.location.LocationState;
 import org.sosy_lab.cpachecker.cpa.smg.SMGCPA.SMGExportLevel;
+import org.sosy_lab.cpachecker.cpa.smg.objects.SMGRegion;
 import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGMemoryPath;
 import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGPrecision;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
@@ -50,6 +51,8 @@ import org.sosy_lab.cpachecker.util.statistics.StatisticsWriter;
 
 import java.io.PrintStream;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.logging.Level;
@@ -88,37 +91,80 @@ public class SMGPrecisionAdjustment implements PrecisionAdjustment, StatisticsPr
 
   }
 
-
-
   @Override
   public Optional<PrecisionAdjustmentResult> prec(AbstractState pState, Precision pPrecision,
-      UnmodifiableReachedSet pStates, Function<AbstractState, AbstractState> pStateProjection, AbstractState pFullState)
-          throws CPAException, InterruptedException {
+      UnmodifiableReachedSet pStates, Function<AbstractState, AbstractState> pStateProjection,
+      AbstractState pFullState)
+      throws CPAException, InterruptedException {
 
     return prec((SMGState) pState, (SMGPrecision) pPrecision,
-        AbstractStates.extractStateByType(pFullState, LocationState.class));
+        AbstractStates.extractStateByType(pFullState, LocationState.class).getLocationNode());
   }
 
-  private Optional<PrecisionAdjustmentResult> prec(SMGState pState, SMGPrecision pPrecision,
-      LocationState location) throws CPAException {
+  public Optional<PrecisionAdjustmentResult> prec(SMGState pState, SMGPrecision pPrecision,
+      CFANode pLocation) throws CPAException {
 
-    boolean allowsFieldAbstraction = pPrecision.allowsFieldAbstraction();
+    boolean allowsFieldAbstraction = pPrecision.useFieldAbstraction();
     boolean allowsHeapAbstraction =
-        pPrecision.allowsHeapAbstractionOnNode(location.getLocationNode());
-    boolean allowsStackAbstraction = pPrecision.allowsStackAbstraction();
+        pPrecision.useHeapAbstractionOnNode(pLocation);
+    boolean allowsStackAbstraction = pPrecision.useStackAbstraction();
+    boolean forgetDeadVariables = pPrecision.forgetDeadVariables();
 
-    if (!allowsFieldAbstraction && !allowsHeapAbstraction && !allowsStackAbstraction) {
+    if (!allowsFieldAbstraction && !allowsHeapAbstraction && !allowsStackAbstraction
+        && !forgetDeadVariables) {
       return Optional.of(PrecisionAdjustmentResult.create(pState, pPrecision, Action.CONTINUE));
-    }
+      }
 
     totalAbstraction.start();
 
     SMGState result = pState;
-    SMGState newState = new SMGState(pState);
-    CFANode node = location.getLocationNode();
+    SMGState newState = pState.createSuccessor();
+
+    if (forgetDeadVariables) {
+      Map<MemoryLocation, SMGRegion> stackVars = newState.getStackVariables();
+      Set<MemoryLocation> deadVars =
+          pPrecision.getDeadVariablesOnLocation(pLocation, stackVars.keySet());
+      Map<MemoryLocation, SMGRegion> deadVarsMap = new HashMap<>(deadVars.size());
+
+      deadVars.forEach((MemoryLocation pDeadVar) -> {
+        deadVarsMap.put(pDeadVar, stackVars.get(pDeadVar));
+      });
+
+      deadVars = newState.filterLiveReference(deadVarsMap);
+
+      boolean liveVarChange = false;
+
+      for (MemoryLocation deadVar : deadVars) {
+        SMGStateInformation info = newState.forgetStackVariable(deadVar);
+        liveVarChange = !info.equals(SMGStateInformation.of());
+      }
+
+      if(pPrecision.forgetNonRelevantVariables()) {
+
+        Set<SMGEdgeHasValue> nonRelevantFields = newState.getNonRelevantFields(pPrecision);
+
+        for (SMGEdgeHasValue hve : nonRelevantFields) {
+          newState.forget(hve);
+          liveVarChange = true;
+        }
+      }
+
+      if (liveVarChange) {
+        String name =
+            String.format("%03d-%03d-after-forgetting-dead-variables-", result.getId(),
+                newState.getId());
+        String description = "after-forgetting-dead-variables-" + result.getId();
+        SMGUtils.plotWhenConfigured(name, newState, description, logger,
+            SMGExportLevel.EVERY, exportOptions);
+
+        result = newState;
+        logger.log(Level.ALL, "Precision adjustment on node ", pLocation.getNodeNumber(),
+            " with result state id: ", result.getId());
+      }
+    }
 
     if (allowsStackAbstraction) {
-      Set<MemoryLocation> stackVariables = pPrecision.getTrackedStackVariablesOnNode(node);
+      Set<MemoryLocation> stackVariables = pPrecision.getTrackedStackVariablesOnNode(pLocation);
       boolean stackAbstractionChange = newState.forgetNonTrackedStackVariables(stackVariables);
 
       if (stackAbstractionChange) {
@@ -129,13 +175,13 @@ public class SMGPrecisionAdjustment implements PrecisionAdjustment, StatisticsPr
             SMGExportLevel.EVERY, exportOptions);
 
         result = newState;
-        logger.log(Level.ALL, "Precision adjustment on node ", node.getNodeNumber(), " with result state id: ", result.getId());
+        logger.log(Level.ALL, "Precision adjustment on node ", pLocation.getNodeNumber(), " with result state id: ", result.getId());
       }
     }
 
     if (allowsFieldAbstraction) {
 
-      Set<SMGMemoryPath> mempaths = pPrecision.getTrackedMemoryPathsOnNode(node);
+      Set<SMGMemoryPath> mempaths = pPrecision.getTrackedMemoryPathsOnNode(pLocation);
       boolean fieldAbstractionChange = newState.forgetNonTrackedHve(mempaths);
 
       if (fieldAbstractionChange) {
@@ -145,28 +191,28 @@ public class SMGPrecisionAdjustment implements PrecisionAdjustment, StatisticsPr
             SMGExportLevel.EVERY, exportOptions);
 
         result = newState;
-        logger.log(Level.ALL, "Precision adjustment on node ", node.getNodeNumber(),
+        logger.log(Level.ALL, "Precision adjustment on node ", pLocation.getNodeNumber(),
              " with result state id: ", result.getId());
       }
     }
 
     if (allowsHeapAbstraction) {
 
-      boolean refineablePrecision = pPrecision.usesHeapInterpoaltion();
       boolean heapAbstractionChange =
-          newState.executeHeapAbstraction(pPrecision.getAbstractionBlocks(node), refineablePrecision);
+          newState.executeHeapAbstraction(pPrecision.getAbstractionBlocks(pLocation), pPrecision.getHeapAbsThreshold(), !pPrecision.useFieldAbstraction());
 
       if (heapAbstractionChange) {
-        String name = String.format("%03d-before-heap-abstraction", result.getId());
-        String name2 = String.format("%03d-after-heap-abstraction", result.getId());
-        String description = "before-heap-abstraction-of-smg-" + result.getId();
-        String description2 = "after-heap-abstraction-of-smg-" + result.getId();
+
+        String name =
+            String.format("%03d-%03d-after-heap-abstraction", result.getId(), newState.getId());
+        String description = "after-heap-abstraction-of-smg-" + result.getId();
         SMGUtils.plotWhenConfigured(name, result, description, logger,
             SMGExportLevel.EVERY, exportOptions);
-        SMGUtils.plotWhenConfigured(name2, newState, description2, logger,
-            SMGExportLevel.EVERY, exportOptions);
-        logger.log(Level.ALL, "Heap abstraction on node ", node.getNodeNumber(),
+        logger.log(Level.ALL, "Heap abstraction on node ", pLocation.getNodeNumber(),
             " with state id: ", pState.getId());
+        String name2 = String.format("%03d-before-heap-abstraction", result.getId());
+        SMGDebugExporter.dumpPlot("node" + pLocation.getNodeNumber() + "_" + name2, result);
+        SMGDebugExporter.dumpPlot("node" + pLocation.getNodeNumber() + "_" + name, newState);
         result = newState;
       }
     }

@@ -38,20 +38,84 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-public class CallstackState implements AbstractState, Partitionable,
-AbstractQueryableState, Serializable {
+/**
+ * Abstract state that stores callstack information by maintaning a single-linked list of states
+ * that represents the current callstack.
+ *
+ * Note that whenever a new state is created, this represents a new, unique, entry of a function.
+ * Two separate entries of the same function are not considered equal,
+ * even if the function names and call nodes of the two callstacks match.
+ * Cf. {@link CallstackTest#testCallstackPreventsUndesiredCoverage()} for an example.
+ * (Because of this this class must inherit the identity-based
+ * {@link #equals(Object)} and {@link #hashCode()} from Object.)
+ */
+public class CallstackState
+    implements AbstractState, Partitionable, AbstractQueryableState, Serializable {
 
   private static final long serialVersionUID = 3629687385150064994L;
 
-  protected final CallstackState previousState;
+  protected final @Nullable CallstackState previousState;
   protected final String currentFunction;
   protected transient CFANode callerNode;
   private final int depth;
+  private transient CallstackWrapper equivalenceWrapper = null;
 
-  public CallstackState(CallstackState pPreviousElement, @Nonnull String pFunction,
+  /**
+   * Callstack wrapper which provides comparison based on stored data.
+   */
+  public static final class CallstackWrapper {
+    private final CallstackState wrapped;
+
+    private CallstackWrapper(CallstackState pWrapped) {
+      wrapped = pWrapped;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (!(o instanceof CallstackWrapper)) {
+        return false;
+      }
+      CallstackWrapper other = (CallstackWrapper) o;
+      return wrapped.currentFunction.equals(other.wrapped.currentFunction)
+          && wrapped.callerNode.equals(other.wrapped.callerNode)
+          && wrapped.depth == other.wrapped.depth
+          && (
+            (wrapped.previousState == null && other.wrapped.previousState == null)
+              ||
+            (wrapped.previousState != null && other.wrapped.previousState != null && Objects.equals(
+                wrapped.previousState.getEquivalenceWrapper(),
+                other.wrapped.previousState.getEquivalenceWrapper()
+            )
+          ));
+    }
+
+    @Override
+    public int hashCode() {
+      return Objects.hash(
+          wrapped.currentFunction,
+          wrapped.callerNode,
+          wrapped.depth,
+          wrapped.previousState != null ?
+          wrapped.previousState.getEquivalenceWrapper() : null);
+    }
+  }
+
+  public CallstackWrapper getEquivalenceWrapper() {
+    if (equivalenceWrapper == null) {
+      equivalenceWrapper = new CallstackWrapper(this);
+    }
+    return equivalenceWrapper;
+  }
+
+
+  public CallstackState(
+      @Nullable CallstackState pPreviousElement,
+      @Nonnull String pFunction,
       @Nonnull CFANode pCallerNode) {
 
     previousState = pPreviousElement;

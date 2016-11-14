@@ -46,6 +46,11 @@ output.path = "output/"
 # (except for the configuration file itself)
 rootDirectory = "."
 
+# Default rounding mode for floating point operations.
+solver.floatingPointRoundingMode = NEAREST_TIES_TO_EVEN
+  enum:     [NEAREST_TIES_TO_EVEN, NEAREST_TIES_AWAY, TOWARD_POSITIVE, TOWARD_NEGATIVE,
+             TOWARD_ZERO]
+
 # Export solver queries in SmtLib format into a file.
 solver.logAllQueries = false
 solver.logfile = no default value
@@ -56,6 +61,12 @@ solver.mathsat5.furtherOptions = ""
 
 # Load less stable optimizing version of mathsat5 solver.
 solver.mathsat5.loadOptimathsat5 = false
+
+# log all queries as Princess-specific Scala code
+solver.princess.logAllQueriesAsScala = false
+
+# file for Princess-specific dump of queries as Scala code
+solver.princess.logAllQueriesAsScalaFile = "princess-query-%03d-"
 
 # The number of atoms a term has to have before it gets abbreviated if there
 # are more identical terms.
@@ -128,6 +139,9 @@ analysis.algorithm.conditionAdjustment = false
 
 # Use McMillan's Impact algorithm for lazy interpolation
 analysis.algorithm.impact = false
+
+# use PDR algorithm
+analysis.algorithm.pdr = false
 
 # use a proof check algorithm to validate a previously generated proof
 analysis.algorithm.proofCheck = false
@@ -290,8 +304,7 @@ assumptions.export = true
 assumptions.file = "assumptions.txt"
 
 # comma-separated list of files with specifications that should be used 
-# in a backwards analysis; used if the full analysis consists of a forward
-# AND a backward part!
+# in a backwards analysis; used if the analysis starts at the target states!
 # (see config/specification/ for examples)
 backwardSpecification = []
 
@@ -809,7 +822,7 @@ cpa.automaton.prec.topOnFinalSelfLoopingState = false
 # This should be the standard use case.
 cpa.automaton.treatErrorsAsTargets = true
 
-# if enabled, cache queries also consider blocks with non-matching precision
+# If enabled, cache queries also consider blocks with non-matching precision
 # for reuse.
 cpa.bam.aggressiveCaching = true
 
@@ -821,6 +834,15 @@ cpa.bam.argFile = "BlockedARG.dot"
 # or any class that implements a PartitioningHeuristic
 cpa.bam.blockHeuristic = no default value
 
+# only consider function with a minimum number of calls. This approach is
+# similar to 'inlining' functions used only a few times. Info: If a function
+# is called several times in a loop, we only count 'one' call.
+cpa.bam.blockHeuristic.functionPartitioning.minFunctionCalls = 0
+
+# only consider function with a minimum number of CFA nodes. This approach is
+# similar to 'inlining' small functions, when using BAM.
+cpa.bam.blockHeuristic.functionPartitioning.minFunctionSize = 0
+
 # This flag determines which precisions should be updated during refinement.
 # We can choose between the minimum number of states and all states that are
 # necessary to re-explore the program along the error-path.
@@ -829,7 +851,7 @@ cpa.bam.doPrecisionRefinementForAllStates = false
 # export blocks
 cpa.bam.exportBlocksPath = "block_cfa.dot"
 
-# if enabled, the reached set cache is analysed for each cache miss to find
+# If enabled, the reached set cache is analysed for each cache miss to find
 # the cause of the miss.
 cpa.bam.gatherCacheMissStatistics = false
 
@@ -877,6 +899,10 @@ cpa.bdd.logfile = "BDDCPA_tracked_variables.log"
 
 # mergeType
 cpa.bdd.merge = "join"
+
+# Threshold for unrolling blocks before stopping. A value of 0 disables the
+# threshold.
+cpa.blockcount.threshold = 1
 
 # Number of loop iterations before the loop counter is abstracted. Zero is
 # equivalent to no limit.
@@ -1156,6 +1182,10 @@ cpa.invariants.merge = "PRECISIONDEPENDENT"
 # variables being live.
 cpa.liveVar.assumeGlobalVariablesAreAlwaysLive = true
 
+# This option enables collecting all expressions that use live variables.
+# This gives further information how a live variable is used.
+cpa.liveVar.collectExpressionsUsingLiveVariables = false
+
 # With this option enabled, unction calls that occur in the CFA are followed.
 # By disabling this option one can traverse a function without following
 # function calls (in this case FunctionSummaryEdges are used)
@@ -1214,6 +1244,9 @@ cpa.lpi.linearizePolicy = true
 # Run naive value determination first, switch to namespaced if it fails.
 cpa.lpi.runHopefulValueDetermination = true
 
+# Remove redundant items when abstract values.
+cpa.lpi.simplifyDotOutput = true
+
 # Algorithm for converting a formula to a set of lemmas
 cpa.lpi.toLemmasAlgorithm = "RCNF"
   allowed values: [CNF, RCNF, NONE]
@@ -1226,6 +1259,9 @@ cpa.lpi.useCachingOptSolver = false
 
 # Cache formulas produced by path formula manager
 cpa.lpi.useCachingPathFormulaManager = true
+
+# Use the new SSA after the merge operation.
+cpa.lpi.useNewSSAAfterMerge = false
 
 # Syntactically pre-compute dependencies for value determination
 cpa.lpi.valDetSyntacticCheck = true
@@ -1266,7 +1302,7 @@ cpa.octagon.refiner.checkForRepeatedRefinements = true
 # seconds or specify a unit; 0 for infinite)
 cpa.octagon.refiner.timeForOctagonFeasibilityCheck = 0ns
 
-# which merge operator to use for InvariantCPA
+# which merge operator to use for PointerCPA
 cpa.pointer2.merge = "JOIN"
   allowed values: [JOIN, SEP]
 
@@ -1829,8 +1865,7 @@ cpa.predicate.useParameterVariables = false
 cpa.predicate.useParameterVariablesForGlobals = false
 
 # Use quantifiers when encoding heap accesses. This requires an SMT solver
-# that is capable of quantifiers (e.g. Z3 or PRINCESS). Currently universal
-# quantifiers will only be introduced for array initializer statements.
+# that is capable of quantifiers (e.g. Z3 or PRINCESS).
 cpa.predicate.useQuantifiersOnArrays = false
 
 # Enable fallback to UFs if a solver does not support non-linear arithmetics.
@@ -1980,6 +2015,14 @@ cpa.smg.refinement.exportRefinmentSMGs = "smg/refinment-%d/smg-%s"
 # export interpolation trees to this file template
 cpa.smg.refinement.interpolationTreeExportFile = "interpolationTree.%d-%d.dot"
 
+# use analysis refinment when refining reached set.Features that cause
+# imprecise results, for example merges of different paths, are deactivated
+# if a spurious counterexample is found.
+cpa.smg.refinement.useAnalysisRefinment = false
+
+# use heap interpoaltion when refining reached set.
+cpa.smg.refinement.useInterpoaltion = false
+
 # Sets the level of runtime checking: NONE, HALF, FULL
 cpa.smg.runtimeCheck = NONE
   enum:     [FORCED, NONE, HALF, FULL]
@@ -1993,6 +2036,13 @@ cpa.smg.trackPredicates = false
 
 # Emit messages when we encounter non-target undefined behavior
 cpa.smg.unknownOnUndefined = true
+
+# Enable forgetting dead Variables. May be imprecise when dealing with
+# memsafety properties and pointer aliasing.
+cpa.smg.useLiveVariableAnalysis = false
+
+# Enable joining SMGs on the end of blocks when enabled.
+cpa.smg.useSMGMerge = false
 
 # Allow SMG to check predicates
 cpa.smg.verifyPredicates = false
@@ -2439,6 +2489,12 @@ parser.dialect = GNUC
 # stdout.
 parser.preprocessor = "cpp"
 
+# Directory where to dump the results of the preprocessor.
+parser.preprocessor.dumpDirectory = "preprocessed"
+
+# Whether to dump the results of the preprocessor to disk for debugging.
+parser.preprocessor.dumpResults = false
+
 # For C files, read #line preprocessor directives and use their information
 # for outputting line numbers. (Always enabled when pre-processing is used.)
 parser.readLineDirectives = false
@@ -2581,11 +2637,19 @@ precision.template.allowedCoefficients = {
       Rational.NEG_ONE, Rational.ONE
   }
 
+# Generate difference constraints.This option is redundant for
+# `maxExpressionSize` >= 2.
+precision.template.generateDifferences = false
+
 # Generate templates from assert statements
 precision.template.generateFromAsserts = true
 
 # Generate templates from all program statements
-precision.template.generateFromStatements = true
+precision.template.generateFromStatements = false
+
+# Force the inclusion of function parameters into the generated templates.
+# Required for summaries computation.
+precision.template.includeFunctionParameters = false
 
 # Maximum size for the generated template
 precision.template.maxExpressionSize = 1
@@ -2778,29 +2842,53 @@ termination.check = false
 # instead of the current one.
 termination.config = no default value
 
-# Analysis type used for synthesis of termination arguments.
-termination.lassoAnalysis.analysisType = LINEAR_WITH_GUESSES
-  enum:     [DISABLED, LINEAR, LINEAR_WITH_GUESSES, NONLINEAR]
-
-# If true, an external tool is used as SMT solver instead of SMTInterpol.
-termination.lassoAnalysis.externalSolver = false
+# Number of generalized eigenvectors in the geometric nontermination
+# argument.
+termination.lassoAnalysis.eigenvectors = 3
 
 # Shell command used to call the external SMT solver.
 termination.lassoAnalysis.externalSolverCommand = "./lib/native/x86_64-linux/z3 -smt2 -in SMTLIB2_COMPLIANT=true "
+
+# Analysis type used for synthesis of linear termination arguments.
+termination.lassoAnalysis.linear.analysisType = LINEAR_WITH_GUESSES
+  enum:     [DISABLED, LINEAR, LINEAR_WITH_GUESSES, NONLINEAR]
+
+# If true, an external tool is used as SMT solver instead of SMTInterpol.
+# This affects only synthesis of linear termination arguments.
+termination.lassoAnalysis.linear.externalSolver = false
+
+# Maximal number of functions used in a ranking function template.
+termination.lassoAnalysis.maxTemplateFunctions = 3
 
 # Number of non-strict supporting invariants for each Motzkin transformation
 # during synthesis of termination arguments.
 termination.lassoAnalysis.nonStrictInvariants = 3
 
+# Analysis type used for synthesis of non-linear termination arguments.
+termination.lassoAnalysis.nonlinear.analysisType = LINEAR_WITH_GUESSES
+  enum:     [DISABLED, LINEAR, LINEAR_WITH_GUESSES, NONLINEAR]
+
+# If true, an external tool is used as SMT solver instead of SMTInterpol.
+# This affects only synthesis of non-linear termination arguments and
+# non-termination arguments.
+termination.lassoAnalysis.nonlinear.externalSolver = false
+
 # Number of strict supporting invariants for each Motzkin transformation
 # during synthesis of termination arguments.
 termination.lassoAnalysis.strictInvariants = 2
 
+# Simplifies loop and stem formulas.
+termination.lassoBuilder.simplify = false
+
 # maximal number of repeated ranking functions per loop before stopping
 # analysis
-termination.maxRepeatedRankingFunctionsPerLoop = 100
+termination.maxRepeatedRankingFunctionsPerLoop = 10
 
 # Strategy used to prepare reched set and ARG for next iteration after
 # successful refinement of the termination argument.
 termination.resetReachedSetStrategy = REMOVE_LOOP
   enum:     [REMOVE_TARGET_STATE, REMOVE_LOOP, RESET]
+
+# A human readable representation of the synthesized (non-)termination
+# arguments is exported to this file.
+termination.resultFile = "terminationAnalysisResult.txt"

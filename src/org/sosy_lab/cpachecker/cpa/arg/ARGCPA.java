@@ -23,8 +23,13 @@
  */
 package org.sosy_lab.cpachecker.cpa.arg;
 
+import static org.sosy_lab.cpachecker.util.AbstractStates.getOutgoingEdges;
+
 import com.google.common.base.Preconditions;
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Multimap;
 
 import org.sosy_lab.common.configuration.ClassOption;
 import org.sosy_lab.common.configuration.Configuration;
@@ -33,6 +38,7 @@ import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CFA;
+import org.sosy_lab.cpachecker.cfa.blocks.BlockPartitioning;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.types.MachineModel;
@@ -107,13 +113,8 @@ public class ARGCPA extends AbstractSingleWrapperCPA implements
 
   private final LogManager logger;
 
-  private final AbstractDomain abstractDomain;
-  private final ARGTransferRelation transferRelation;
-  private final MergeOperator mergeOperator;
   private final ARGStopSep stopOperator;
-  private final PrecisionAdjustment precisionAdjustment;
   private final ARGStatistics stats;
-  private final ProofChecker wrappedProofChecker;
 
   private final CEXExporter cexExporter;
   private final MachineModel machineModel;
@@ -122,25 +123,7 @@ public class ARGCPA extends AbstractSingleWrapperCPA implements
     super(cpa);
     config.inject(this);
     this.logger = logger;
-    abstractDomain = new FlatLatticeDomain();
-    transferRelation = new ARGTransferRelation(cpa.getTransferRelation());
 
-    if (cpa instanceof ProofChecker) {
-      this.wrappedProofChecker = (ProofChecker)cpa;
-    } else {
-      this.wrappedProofChecker = null;
-    }
-
-    MergeOperator wrappedMerge = getWrappedCpa().getMergeOperator();
-    if (wrappedMerge == MergeSepOperator.getInstance()) {
-      mergeOperator = MergeSepOperator.getInstance();
-    } else {
-      if (inCPAEnabledAnalysis) {
-        mergeOperator = new ARGMergeJoinCPAEnabledAnalysis(wrappedMerge, deleteInCPAEnabledAnalysis);
-      } else {
-        mergeOperator = new ARGMergeJoin(wrappedMerge);
-      }
-    }
     stopOperator = new ARGStopSep(getWrappedCpa().getStopOperator(), logger, config);
     cexFilter = createCounterexampleFilter(config, logger, cpa);
     ARGPathExporter argPathExporter = new ARGPathExporter(config, logger, cfa);
@@ -148,13 +131,6 @@ public class ARGCPA extends AbstractSingleWrapperCPA implements
     stats = new ARGStatistics(config, logger, this, cfa.getMachineModel(),
         dumpErrorPathImmediately ? null : cexExporter, argPathExporter);
     machineModel = cfa.getMachineModel();
-
-    PrecisionAdjustment wrappedPrec = cpa.getPrecisionAdjustment();
-    if (wrappedPrec instanceof SimplePrecisionAdjustment) {
-      precisionAdjustment = new ARGSimplePrecisionAdjustment((SimplePrecisionAdjustment) wrappedPrec);
-    } else {
-      precisionAdjustment = new ARGPrecisionAdjustment(cpa.getPrecisionAdjustment(), inCPAEnabledAnalysis, stats);
-    }
   }
 
   private CounterexampleFilter createCounterexampleFilter(Configuration config,
@@ -175,17 +151,24 @@ public class ARGCPA extends AbstractSingleWrapperCPA implements
 
   @Override
   public AbstractDomain getAbstractDomain() {
-    return abstractDomain;
+    return new FlatLatticeDomain();
   }
 
   @Override
   public TransferRelation getTransferRelation() {
-    return transferRelation;
+    return new ARGTransferRelation(getWrappedCpa().getTransferRelation());
   }
 
   @Override
   public MergeOperator getMergeOperator() {
-    return mergeOperator;
+    MergeOperator wrappedMergeOperator = getWrappedCpa().getMergeOperator();
+    if (wrappedMergeOperator == MergeSepOperator.getInstance()) {
+      return MergeSepOperator.getInstance();
+    } else if (inCPAEnabledAnalysis) {
+      return new ARGMergeJoinCPAEnabledAnalysis(wrappedMergeOperator, deleteInCPAEnabledAnalysis);
+    } else {
+      return new ARGMergeJoin(wrappedMergeOperator);
+    }
   }
 
   @Override
@@ -195,7 +178,12 @@ public class ARGCPA extends AbstractSingleWrapperCPA implements
 
   @Override
   public PrecisionAdjustment getPrecisionAdjustment() {
-    return precisionAdjustment;
+    PrecisionAdjustment wrappedPrec = getWrappedCpa().getPrecisionAdjustment();
+    if (wrappedPrec instanceof SimplePrecisionAdjustment) {
+      return new ARGSimplePrecisionAdjustment((SimplePrecisionAdjustment) wrappedPrec);
+    } else {
+      return new ARGPrecisionAdjustment(wrappedPrec, inCPAEnabledAnalysis, stats);
+    }
   }
 
   @Override
@@ -230,13 +218,41 @@ public class ARGCPA extends AbstractSingleWrapperCPA implements
   @Override
   public boolean areAbstractSuccessors(AbstractState pElement, CFAEdge pCfaEdge,
       Collection<? extends AbstractState> pSuccessors) throws CPATransferException, InterruptedException {
-    Preconditions.checkNotNull(wrappedProofChecker, "Wrapped CPA has to implement ProofChecker interface");
-    return transferRelation.areAbstractSuccessors(pElement, pCfaEdge, pSuccessors, wrappedProofChecker);
+    Preconditions.checkState(
+        getWrappedCpa() instanceof ProofChecker,
+        "Wrapped CPA has to implement ProofChecker interface");
+    ProofChecker wrappedProofChecker = (ProofChecker)getWrappedCpa();
+    ARGState element = (ARGState) pElement;
+
+    assert Iterables.elementsEqual(element.getChildren(), pSuccessors);
+
+    AbstractState wrappedState = element.getWrappedState();
+    Multimap<CFAEdge, AbstractState> wrappedSuccessors = HashMultimap.create();
+    for (AbstractState absElement : pSuccessors) {
+      ARGState successorElem = (ARGState) absElement;
+      wrappedSuccessors.put(element.getEdgeToChild(successorElem), successorElem.getWrappedState());
+    }
+
+    if (pCfaEdge != null) {
+      return wrappedProofChecker.areAbstractSuccessors(
+          wrappedState, pCfaEdge, wrappedSuccessors.get(pCfaEdge));
+    }
+
+    for (CFAEdge edge : getOutgoingEdges(element)) {
+      if (!wrappedProofChecker.areAbstractSuccessors(
+          wrappedState, edge, wrappedSuccessors.get(edge))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @Override
   public boolean isCoveredBy(AbstractState pElement, AbstractState pOtherElement) throws CPAException, InterruptedException {
-    Preconditions.checkNotNull(wrappedProofChecker, "Wrapped CPA has to implement ProofChecker interface");
+    Preconditions.checkState(
+        getWrappedCpa() instanceof ProofChecker,
+        "Wrapped CPA has to implement ProofChecker interface");
+    ProofChecker wrappedProofChecker = (ProofChecker)getWrappedCpa();
     return stopOperator.isCoveredBy(pElement, pOtherElement, wrappedProofChecker);
   }
 
@@ -253,5 +269,12 @@ public class ARGCPA extends AbstractSingleWrapperCPA implements
 
   public MachineModel getMachineModel() {
     return machineModel;
+  }
+
+  @Override
+  public void setPartitioning(BlockPartitioning partitioning) {
+    ConfigurableProgramAnalysis cpa = getWrappedCpa();
+    assert cpa instanceof ConfigurableProgramAnalysisWithBAM;
+    ((ConfigurableProgramAnalysisWithBAM) cpa).setPartitioning(partitioning);
   }
 }

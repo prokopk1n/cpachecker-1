@@ -23,6 +23,7 @@
  */
 package org.sosy_lab.cpachecker.cfa.parser.eclipse.c;
 
+import static com.google.common.base.Verify.verify;
 import static org.sosy_lab.cpachecker.cfa.types.c.CTypes.withoutConst;
 import static org.sosy_lab.cpachecker.cfa.types.c.CTypes.withoutVolatile;
 
@@ -453,19 +454,21 @@ class ASTConverter {
     case ALWAYS_FALSE:
       return convertExpressionWithSideEffects(e.getNegativeResultExpression());
     case NORMAL:
-      CIdExpression tmp = createTemporaryVariable(e);
 
       // this means the return value (if there could be one) of the conditional
       // expression is not used
-      if (tmp.getExpressionType() instanceof CVoidType) {
+      if (convertType(e) instanceof CVoidType) {
         sideAssignmentStack.addConditionalExpression(e, null);
+
         // TODO we should not return a variable here, however null cannot be returned
-        // perhaps we need a dummyexpression here
+        // perhaps we need a DummyExpression here
         return CIntegerLiteralExpression.ZERO;
-      } else {
-        sideAssignmentStack.addConditionalExpression(e, tmp);
-        return tmp;
       }
+
+      CIdExpression tmp = createTemporaryVariable(e);
+      assert !(tmp.getExpressionType() instanceof CVoidType);
+      sideAssignmentStack.addConditionalExpression(e, tmp);
+      return tmp;
     default:
       throw new AssertionError("Unhandled case statement: " + conditionKind);
     }
@@ -586,27 +589,31 @@ class ASTConverter {
    * creates temporary variables with increasing numbers
    */
   private CIdExpression createTemporaryVariable(IASTExpression e) {
+    CType type = convertType(e);
+
+    return createInitializedTemporaryVariable(
+        getLocation(e), type, (CInitializer)null);
+  }
+
+  /**
+   * Convert Eclipse AST type to {@link CType}.
+   */
+  private CType convertType(IASTExpression e) {
     CType type = typeConverter.convert(e.getExpressionType());
     if (type.getCanonicalType() instanceof CVoidType) {
       if (e instanceof IASTFunctionCallExpression) {
         // Void method called and return value used.
         // Possibly this is an undeclared function.
         // Default return type in C for these cases is INT.
-        type = CNumericTypes.INT;
-      } else {
-        // TODO enable if we do not have unnecessary temporary variables of type void anymore
-//        throw new CFAGenerationRuntimeException(
-//            "Cannot create temporary variable for expression with type void",
-//            e, niceFileNameFunction);
+        return CNumericTypes.INT;
       }
 
       // workaround for strange CDT behaviour
     } else if (type instanceof CProblemType && e instanceof IASTConditionalExpression) {
-      type = typeConverter.convert(((IASTConditionalExpression)e).getNegativeResultExpression().getExpressionType());
+      return typeConverter.convert(
+          ((IASTConditionalExpression)e).getNegativeResultExpression() .getExpressionType());
     }
-
-    return createInitializedTemporaryVariable(
-        getLocation(e), type, (CInitializer)null);
+    return type;
   }
 
   private CIdExpression createInitializedTemporaryVariable(
@@ -842,8 +849,13 @@ class ASTConverter {
     final FileLocation loc = getLocation(e);
 
     CType ownerType = owner.getExpressionType().getCanonicalType();
-    while (ownerType instanceof CPointerType) {
-      ownerType = ((CPointerType)ownerType).getType().getCanonicalType();
+    if (e.isPointerDereference()) {
+      if (ownerType instanceof CPointerType) {
+        ownerType = ((CPointerType) ownerType).getType();
+      } else if (!(ownerType instanceof CProblemType)) {
+        throw new CFAGenerationRuntimeException(
+            "Pointer dereference of non-pointer type " + ownerType, e, niceFileNameFunction);
+      }
     }
 
     // In case of an anonymous struct, the type provided by Eclipse
@@ -859,10 +871,9 @@ class ASTConverter {
       fullFieldReference = new CFieldReference(loc,
           typeConverter.convert(e.getExpressionType()), fieldName, owner,
           e.isPointerDereference());
-    } else {
-      assert ownerType instanceof CCompositeType : "owner of field has no CCompositeType, but is a: " + ownerType.getClass() + " instead.";
-
-      wayToInnerField = getWayToInnerField(ownerType, fieldName, loc, new ArrayList<>());
+    } else if (ownerType instanceof CCompositeType) {
+      wayToInnerField =
+          getWayToInnerField((CCompositeType) ownerType, fieldName, loc, new ArrayList<>());
       if (!wayToInnerField.isEmpty()) {
         fullFieldReference = owner;
         boolean isPointerDereference = e.isPointerDereference();
@@ -871,8 +882,20 @@ class ASTConverter {
           isPointerDereference = false;
         }
       } else {
-        throw new CFAGenerationRuntimeException("Accessing unknown field " + fieldName + " in " + ownerType + " in file " + staticVariablePrefix.split("__")[0], e, niceFileNameFunction);
+        throw new CFAGenerationRuntimeException(
+            "Accessing unknown field " + fieldName + " in type " + ownerType,
+            e,
+            niceFileNameFunction);
       }
+    } else {
+      throw new CFAGenerationRuntimeException(
+          "Cannot access field "
+              + fieldName
+              + " in type "
+              + ownerType
+              + " which is not a composite type",
+          e,
+          niceFileNameFunction);
     }
 
     // FOLLOWING IF CLAUSE WILL ONLY BE EVALUATED WHEN THE OPTION cfa.simplifyPointerExpressions IS SET TO TRUE
@@ -927,24 +950,8 @@ class ASTConverter {
 
     // FOLLOWING IF CLAUSE WILL ONLY BE EVALUATED WHEN THE OPTION cfa.simplifyPointerExpressions IS SET TO TRUE
     // if there is a "var->field" convert it to (*var).field
-    } else if (simplifyPointerExpressions && e.isPointerDereference()) {
-      CType newType = null;
-      CType typeDefType = owner.getExpressionType();
-
-      //unpack typedefs
-      while (typeDefType instanceof CTypedefType) {
-        typeDefType = ((CTypedefType)typeDefType).getRealType();
-      }
-
-      if (typeDefType instanceof CPointerType) {
-        newType = ((CPointerType)typeDefType).getType();
-      } else {
-        throw new CFAGenerationRuntimeException("The owner of the struct with field dereference has an invalid type", owner);
-      }
-
-      CPointerExpression exp = new CPointerExpression(loc, newType, owner);
-
-      return new CFieldReference(loc, fullFieldReference.getExpressionType(), fieldName, exp, false);
+    } else if (simplifyPointerExpressions) {
+      return ((CFieldReference) fullFieldReference).withExplicitPointerDereference();
     }
 
     return (CFieldReference) fullFieldReference;
@@ -959,27 +966,24 @@ class ASTConverter {
    * @param allReferences an empty list
    * @return the fields (including the searched one) in the right order
    */
-  private static List<Pair<String, CType>> getWayToInnerField(CType owner, String fieldName, FileLocation loc, List<Pair<String, CType>> allReferences) {
-    CType type = owner.getCanonicalType();
-
-    if (type instanceof CCompositeType) {
-      for (CCompositeTypeMemberDeclaration member : ((CCompositeType) type).getMembers()) {
-        if (member.getName().equals(fieldName)) {
-          allReferences.add(Pair.of(member.getName(), member.getType()));
-          return allReferences;
-        }
+  private static List<Pair<String, CType>> getWayToInnerField(CCompositeType owner, String fieldName, FileLocation loc, List<Pair<String, CType>> allReferences) {
+    for (CCompositeTypeMemberDeclaration member : owner.getMembers()) {
+      if (member.getName().equals(fieldName)) {
+        allReferences.add(Pair.of(member.getName(), member.getType()));
+        return allReferences;
       }
+    }
 
-      // no field found in current struct, so proceed to the structs/unions which are
-      // fields inside the current struct
-      for (CCompositeTypeMemberDeclaration member : ((CCompositeType) type).getMembers()) {
-        if (member.getName().contains("__anon_type_member_")) {
-          List<Pair<String, CType>> tmp = new ArrayList<>(allReferences);
-          tmp.add(Pair.of(member.getName(), member.getType()));
-          tmp = getWayToInnerField(member.getType(), fieldName, loc, tmp);
-          if (!tmp.isEmpty()) {
-            return tmp;
-          }
+    // no field found in current struct, so proceed to the structs/unions which are
+    // fields inside the current struct
+    for (CCompositeTypeMemberDeclaration member : owner.getMembers()) {
+      CType memberType = member.getType().getCanonicalType();
+      if (memberType instanceof CCompositeType && member.getName().contains("__anon_type_member_")) {
+        List<Pair<String, CType>> tmp = new ArrayList<>(allReferences);
+        tmp.add(Pair.of(member.getName(), member.getType()));
+        tmp = getWayToInnerField((CCompositeType)memberType, fieldName, loc, tmp);
+        if (!tmp.isEmpty()) {
+          return tmp;
         }
       }
     }
@@ -1716,6 +1720,19 @@ class ASTConverter {
 
 
   private Triple<CType, IASTInitializer, String> convert(IASTDeclarator d, CType specifier) {
+    while (d != null
+        && d.getClass() == org.eclipse.cdt.internal.core.dom.parser.c.CASTDeclarator.class
+        && d.getPointerOperators().length == 0
+        && d.getAttributes().length == 0
+        && d.getAttributeSpecifiers().length == 0
+        && d.getInitializer() == null
+        && d.getNestedDeclarator() != null) {
+      // This is an "empty" declarator with nothing else but the nested declarator.
+      // It comes from code like "void ((*(f))(void));"
+      // (the outer unnecessary parentheses are represented by this).
+      // We just ignore this declarator like we ignore parentheses in expressions.
+      d = d.getNestedDeclarator();
+    }
 
     if (d instanceof IASTFunctionDeclarator) {
       // TODO is it always right to assume that here is no static storage class
@@ -2290,18 +2307,32 @@ class ASTConverter {
 
     String fileName = l.getFileName();
     int startingLineInInput = l.getStartingLineNumber();
-    int startingLineInOrigin = startingLineInInput;
+    int endingLineInInput = l.getEndingLineNumber();
 
     Pair<String, Integer> startingInOrigin = sourceOriginMapping.getOriginLineFromAnalysisCodeLine(
         fileName, startingLineInInput);
-
     fileName = startingInOrigin.getFirst();
-    startingLineInOrigin = startingInOrigin.getSecond();
+    int startingLineInOrigin = startingInOrigin.getSecond();
 
-    return new FileLocation(l.getEndingLineNumber(), fileName,
+    Pair<String, Integer> endingInOrigin =
+        sourceOriginMapping.getOriginLineFromAnalysisCodeLine(fileName, endingLineInInput);
+    verify(
+        fileName.equals(endingInOrigin.getFirst()),
+        "Unexpected token '%s' spanning files %s and %s",
+        n,
+        fileName,
+        endingInOrigin.getFirst());
+    int endingLineInOrigin = endingInOrigin.getSecond();
+
+    return new FileLocation(
+        fileName,
         niceFileNameFunction.apply(fileName),
-        l.getNodeLength(), l.getNodeOffset(),
-        startingLineInInput, startingLineInOrigin);
+        l.getNodeOffset(),
+        l.getNodeLength(),
+        startingLineInInput,
+        endingLineInInput,
+        startingLineInOrigin,
+        endingLineInOrigin);
   }
 
   static String convert(IASTName n) {

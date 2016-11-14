@@ -316,14 +316,14 @@ public final class SMGPlotter {
   private String smgHVEdgeAsDot(SMGEdgeHasValue pEdge, CLangSMG pSMG) {
     if (pEdge.getValue() == 0) {
       String newNull = newNullLabel();
-      return newNull + "[shape=plaintext, label=\"NULL\"];" + objectIndex.get(pEdge.getObject()).getName() + " -> " + newNull + "[label=\"[" + pEdge.getOffset() + "B-" + (pEdge.getOffset() + pEdge.getSizeInBits(pSMG.getMachineModel())) + "B]\"];";
+      return newNull + "[shape=plaintext, label=\"NULL\"];" + objectIndex.get(pEdge.getObject()).getName() + " -> " + newNull + "[label=\"[" + pEdge.getOffset() + "b-" + (pEdge.getOffset() + pEdge.getSizeInBits(pSMG.getMachineModel())) + "b]\ntype: " + pEdge.getType().getCanonicalType().toString() + "\"];";
     } else {
-      return objectIndex.get(pEdge.getObject()).getName() + " -> value_" + pEdge.getValue() + "[label=\"[" + pEdge.getOffset() + "B-" + (pEdge.getOffset() + pEdge.getSizeInBits(pSMG.getMachineModel())) + "B]\"];";
+      return objectIndex.get(pEdge.getObject()).getName() + " -> value_" + pEdge.getValue() + "[label=\"[" + pEdge.getOffset() + "b-" + (pEdge.getOffset() + pEdge.getSizeInBits(pSMG.getMachineModel())) + "b]\ntype: " + pEdge.getType().getCanonicalType().toString() + "\"];";
     }
   }
 
   private String smgPTEdgeAsDot(SMGEdgePointsTo pEdge) {
-    return "value_" + pEdge.getValue() + " -> " + objectIndex.get(pEdge.getObject()).getName() + "[label=\"+" + pEdge.getOffset() + "B, " + pEdge.getTargetSpecifier() + "\"];";
+    return "value_" + pEdge.getValue() + " -> " + objectIndex.get(pEdge.getObject()).getName() + "[label=\"+" + pEdge.getOffset() + "b, " + pEdge.getTargetSpecifier() + "\"];";
   }
 
   private static String smgValueAsDot(int value, Map<SMGKnownSymValue, SMGKnownExpValue> explicitValues) {

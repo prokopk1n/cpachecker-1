@@ -24,6 +24,9 @@
 package org.sosy_lab.cpachecker.util.predicates.pathformula.pointeraliasing;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Predicates.in;
+import static com.google.common.base.Predicates.not;
+import static com.google.common.collect.FluentIterable.from;
 import static org.sosy_lab.common.collect.PersistentSortedMaps.merge;
 import static org.sosy_lab.cpachecker.util.predicates.pathformula.pointeraliasing.CTypeUtils.checkIsSimplified;
 
@@ -59,16 +62,17 @@ import org.sosy_lab.cpachecker.util.predicates.smt.ArrayFormulaManagerView;
 import org.sosy_lab.cpachecker.util.predicates.smt.BooleanFormulaManagerView;
 import org.sosy_lab.cpachecker.util.predicates.smt.FormulaManagerView;
 import org.sosy_lab.cpachecker.util.predicates.smt.FunctionFormulaManagerView;
-import org.sosy_lab.solver.api.ArrayFormula;
-import org.sosy_lab.solver.api.BooleanFormula;
-import org.sosy_lab.solver.api.Formula;
-import org.sosy_lab.solver.api.FormulaType;
+import org.sosy_lab.java_smt.api.ArrayFormula;
+import org.sosy_lab.java_smt.api.BooleanFormula;
+import org.sosy_lab.java_smt.api.Formula;
+import org.sosy_lab.java_smt.api.FormulaType;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.CheckReturnValue;
 import javax.annotation.Nullable;
@@ -335,8 +339,8 @@ class PointerTargetSetManager {
     mergedTargets =
         addAllTargets(mergedTargets, basesOnlyPts1.getSnapshot(), fieldsOnlyPts2.getSnapshot());
 
-    final PersistentSortedMap<String, DeferredAllocationPool> mergedDeferredAllocations =
-        mergeDeferredAllocationPools(pts1, pts2);
+    final PersistentList<Pair<String, DeferredAllocation>> mergedDeferredAllocations =
+        mergeLists(pts1.getDeferredAllocations(), pts2.getDeferredAllocations());
     shutdownNotifier.shutdownIfNecessary();
 
     final String lastBase;
@@ -347,19 +351,19 @@ class PointerTargetSetManager {
       // Trivial case: either no allocations on one branch at all, or no difference.
       // Just take the first non-null value, the second is either equal or null.
       lastBase = (pts1.getLastBase() != null) ? pts1.getLastBase() : pts2.getLastBase();
-      basesMergeFormula = bfmgr.makeBoolean(true);
+      basesMergeFormula = bfmgr.makeTrue();
 
     } else if (basesOnlyPts1.isEmpty()) {
       assert pts2.getBases().keySet().containsAll(pts1.getBases().keySet());
       // One branch has a strict superset of the allocations of the other.
       lastBase = pts2.getLastBase();
-      basesMergeFormula = bfmgr.makeBoolean(true);
+      basesMergeFormula = bfmgr.makeTrue();
 
     } else if (basesOnlyPts2.isEmpty()) {
       assert pts1.getBases().keySet().containsAll(pts2.getBases().keySet());
       // One branch has a strict superset of the allocations of the other.
       lastBase = pts1.getLastBase();
-      basesMergeFormula = bfmgr.makeBoolean(true);
+      basesMergeFormula = bfmgr.makeTrue();
 
     } else {
       // Otherwise we have no possibility to determine which base to use as lastBase,
@@ -393,39 +397,6 @@ class PointerTargetSetManager {
     }
 
     return new MergeResult<>(resultPTS, mergeFormula1, mergeFormula2, basesMergeFormula);
-  }
-
-  /**
-   * Merges two {@link DeferredAllocationPool}s into one.
-   *
-   * @param pts1 The first pool.
-   * @param pts2 The second pool.
-   * @return A merged {@code DeferredAllocationPool} with the content of both parameters.
-   */
-  private PersistentSortedMap<String, DeferredAllocationPool> mergeDeferredAllocationPools(final PointerTargetSet pts1,
-      final PointerTargetSet pts2) {
-    final Map<DeferredAllocationPool, DeferredAllocationPool> mergedDeferredAllocationPools = new HashMap<>();
-    final MergeConflictHandler<String, DeferredAllocationPool> deferredAllocationMergingConflictHandler =
-      (key, a, b) -> {
-        final DeferredAllocationPool result = a.mergeWith(b);
-        final DeferredAllocationPool oldResult = mergedDeferredAllocationPools.get(result);
-        if (oldResult == null) {
-          mergedDeferredAllocationPools.put(result, result);
-          return result;
-        } else {
-          final DeferredAllocationPool newResult = oldResult.mergeWith(result);
-          mergedDeferredAllocationPools.put(newResult, newResult);
-          return newResult;
-        }
-      };
-    PersistentSortedMap<String, DeferredAllocationPool> mergedDeferredAllocations =
-      merge(pts1.getDeferredAllocations(), pts2.getDeferredAllocations(), deferredAllocationMergingConflictHandler);
-    for (final DeferredAllocationPool merged : mergedDeferredAllocationPools.keySet()) {
-      for (final String pointerVariable : merged.getPointerVariables()) {
-        mergedDeferredAllocations = mergedDeferredAllocations.putAndCopy(pointerVariable, merged);
-      }
-    }
-    return mergedDeferredAllocations;
   }
 
   /**
@@ -502,6 +473,35 @@ class PointerTargetSetManager {
     }
   }
 
+  static <T> PersistentList<T> mergeLists(
+      final PersistentList<T> list1, final PersistentList<T> list2) {
+    if (list1 == list2) {
+      return list1;
+    }
+    final int size1 = list1.size();
+    final int size2 = list2.size();
+    if (size1 == size2 && list1.equals(list2)) {
+      return list1;
+    }
+
+    PersistentList<T> smallerList, biggerList;
+    if (size1 > size2) {
+      smallerList = list2;
+      biggerList = list1;
+    } else {
+      smallerList = list1;
+      biggerList = list2;
+    }
+
+    final Set<T> fromBigger = new HashSet<>(biggerList);
+    PersistentList<T> result = biggerList;
+
+    for (final T target : from(smallerList).filter(not(in(fromBigger)))) {
+      result = result.with(target);
+    }
+    return result;
+  }
+
   /**
    * Gives a handler for merge conflicts.
    *
@@ -510,7 +510,7 @@ class PointerTargetSetManager {
    * @return A handler for merge conflicts.
    */
   private static <K, T> MergeConflictHandler<K, PersistentList<T>> mergeOnConflict() {
-    return (key, list1, list2) -> DeferredAllocationPool.mergeLists(list1, list2);
+    return (key, list1, list2) -> mergeLists(list1, list2);
   }
 
   /**
@@ -523,10 +523,10 @@ class PointerTargetSetManager {
    */
   private BooleanFormula makeValueImportConstraints(final PersistentSortedMap<String, CType> newBases,
       final List<Pair<CCompositeType, String>> sharedFields, final SSAMapBuilder ssa) {
-    BooleanFormula mergeFormula = bfmgr.makeBoolean(true);
+    BooleanFormula mergeFormula = bfmgr.makeTrue();
     for (final Map.Entry<String, CType> base : newBases.entrySet()) {
-      if (!options.isDynamicAllocVariableName(base.getKey()) &&
-          !CTypeUtils.containsArray(base.getValue())) {
+      if (!options.isDynamicAllocVariableName(base.getKey())
+          && !CTypeUtils.containsArrayOutsideFunctionParameter(base.getValue())) {
         final FormulaType<?> baseFormulaType = typeHandler.getFormulaTypeFromCType(
                                                    CTypeUtils.getBaseType(base.getValue()));
         mergeFormula = bfmgr.and(mergeFormula, makeValueImportConstraints(formulaManager.makeVariable(baseFormulaType,
@@ -558,16 +558,17 @@ class PointerTargetSetManager {
       final List<Pair<CCompositeType, String>> sharedFields,
       final SSAMapBuilder ssa) {
 
-    assert !CTypeUtils.containsArray(variableType) : "Array access can't be encoded as a variable";
+    assert !CTypeUtils.containsArrayOutsideFunctionParameter(variableType)
+        : "Array access can't be encoded as a variable";
 
-    BooleanFormula result = bfmgr.makeBoolean(true);
+    BooleanFormula result = bfmgr.makeTrue();
 
     if (variableType instanceof CCompositeType) {
       final CCompositeType compositeType = (CCompositeType) variableType;
       assert compositeType.getKind() != ComplexTypeKind.ENUM : "Enums are not composite: " + compositeType;
-      int offset = 0;
       for (final CCompositeTypeMemberDeclaration memberDeclaration : compositeType.getMembers()) {
         final String memberName = memberDeclaration.getName();
+        final int offset = typeHandler.getOffset(compositeType, memberName);
         final CType memberType = typeHandler.getSimplifiedType(memberDeclaration);
         final String newPrefix = variablePrefix + CToFormulaConverterWithPointerAliasing.FIELD_NAME_SEPARATOR + memberName;
         if (ssa.getIndex(newPrefix) > 0) {
@@ -587,9 +588,6 @@ class PointerTargetSetManager {
                   ssa
               )
           );
-        }
-        if (compositeType.getKind() == ComplexTypeKind.STRUCT) {
-          offset += typeHandler.getSizeof(memberType);
         }
       }
     } else {
@@ -720,13 +718,10 @@ class PointerTargetSetManager {
       assert compositeType.getKind() != ComplexTypeKind.ENUM : "Enums are not composite: " + compositeType;
       final String type = CTypeUtils.typeToString(compositeType);
       typeHandler.addCompositeTypeToCache(compositeType);
-      int offset = 0;
       for (final CCompositeTypeMemberDeclaration memberDeclaration : compositeType.getMembers()) {
+        final int offset = typeHandler.getOffset(compositeType, memberDeclaration.getName());
         if (fields.containsKey(CompositeField.of(type, memberDeclaration.getName()))) {
           targets = addToTargets(base, memberDeclaration.getType(), compositeType, offset, containerOffset + properOffset, targets, fields);
-        }
-        if (compositeType.getKind() == ComplexTypeKind.STRUCT) {
-          offset += typeHandler.getSizeof(memberDeclaration.getType());
         }
       }
     } else {

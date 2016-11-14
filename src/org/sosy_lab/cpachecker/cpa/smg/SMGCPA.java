@@ -98,6 +98,13 @@ public class SMGCPA implements ConfigurableProgramAnalysis, ConfigurableProgramA
   @Option(secure = true, name = "trackPredicates", description = "Enable track predicates on SMG state")
   private boolean trackPredicates = false;
 
+  @Option(
+      secure = true, name = "useLiveVariableAnalysis", description = "Enable forgetting dead Variables. May be imprecise when dealing with memsafety properties and pointer aliasing.")
+  private boolean useLiveVariableAnalysis = false;
+
+  @Option(secure = true, name = "useSMGMerge", description = "Enable joining SMGs on the end of blocks when enabled.")
+  private boolean useSMGMerge = false;
+
   public int getExternalAllocationSize() {
     return externalAllocationSize;
   }
@@ -146,7 +153,12 @@ public class SMGCPA implements ConfigurableProgramAnalysis, ConfigurableProgramA
     precisionAdjustment = new SMGPrecisionAdjustment(logger, exportOptions);
 
     abstractDomain = DelegateAbstractDomain.<SMGState> getInstance();
-    mergeOperator = MergeSepOperator.getInstance();
+
+    if (useSMGMerge) {
+      mergeOperator = SMGMerge.getInstance();
+    } else {
+      mergeOperator = MergeSepOperator.getInstance();
+    }
 
     if(stopType.equals("END_BLOCK")) {
       stopOperator = new SMGStopOperator(abstractDomain);
@@ -168,9 +180,9 @@ public class SMGCPA implements ConfigurableProgramAnalysis, ConfigurableProgramA
     exportOptions.changeToRefinment(pNewPathTemplate);
   }
 
-  public void injectRefinablePrecision() {
-    // replace the full precision with an empty, refinable precision
-    precision = SMGPrecision.createRefineablePrecision(precision);
+  public void injectRefinablePrecision(boolean pUseInterpoaltion) {
+    // replace static precision with refineable precision
+    precision = SMGPrecision.createRefineablePrecision(precision, pUseInterpoaltion);
   }
 
   public MachineModel getMachineModel() {
@@ -244,13 +256,20 @@ public class SMGCPA implements ConfigurableProgramAnalysis, ConfigurableProgramA
   }
 
   private SMGPrecision initializePrecision() {
-    return SMGPrecision.createStaticPrecision(enableHeapAbstraction, logger, blockOperator);
+    return SMGPrecision.createStaticPrecision(enableHeapAbstraction, logger, blockOperator,
+        cfa, useSMGMerge, useLiveVariableAnalysis);
   }
 
   @Override
   public ConcreteStatePath createConcreteStatePath(ARGPath pPath) {
 
-    return new SMGConcreteErrorPathAllocator(assumptionToEdgeAllocator).allocateAssignmentsToPath(pPath);
+    SMGConcreteErrorPathAllocator alloc =
+        new SMGConcreteErrorPathAllocator(assumptionToEdgeAllocator);
+    return alloc.allocateAssignmentsToPath(pPath);
+  }
+
+  public AssumptionToEdgeAllocator getAssumptionToEdgeAllocator() {
+    return assumptionToEdgeAllocator;
   }
 
   public LogManager getLogger() {

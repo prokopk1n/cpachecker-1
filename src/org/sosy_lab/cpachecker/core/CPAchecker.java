@@ -83,6 +83,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -197,7 +198,7 @@ public class CPAchecker {
     name = "backwardSpecification",
     description =
         "comma-separated list of files with specifications that should be used "
-            + "\nin a backwards analysis; used if the full analysis consists of a forward AND a backward part!"
+            + "\nin a backwards analysis; used if the analysis starts at the target states!"
             + "\n(see config/specification/ for examples)"
   )
   @FileOption(FileOption.Type.OPTIONAL_INPUT_FILE)
@@ -276,6 +277,7 @@ public class CPAchecker {
     CFA cfa = null;
     Result result = Result.NOT_YET_STARTED;
     String violatedPropertyDescription = "";
+    boolean programNeverTerminates = false;
 
     final ShutdownRequestListener interruptThreadOnShutdown = interruptCurrentThreadOnShutdown();
     shutdownNotifier.register(interruptThreadOnShutdown);
@@ -301,7 +303,7 @@ public class CPAchecker {
         Specification specification;
         stats.cpaCreationTime.start();
         try {
-          specification = createSpecification(cfa);
+          specification = Specification.fromFiles(specificationFiles, cfa, config, logger);
           cpa = factory.createCPA(cfa, specification);
         } finally {
           stats.cpaCreationTime.stop();
@@ -323,7 +325,7 @@ public class CPAchecker {
           ImpactAlgorithm mcmillan = (ImpactAlgorithm)algorithm;
           reached.add(mcmillan.getInitialState(cfa.getMainFunction()), mcmillan.getInitialPrecision(cfa.getMainFunction()));
         } else {
-          initializeReachedSet(reached, cpa, specification, cfa.getMainFunction(), cfa);
+          initializeReachedSet(reached, cpa, cfa.getMainFunction(), cfa);
         }
       }
 
@@ -335,13 +337,14 @@ public class CPAchecker {
 
       if (disableAnalysis) {
         return new CPAcheckerResult(
-            Result.NOT_YET_STARTED, violatedPropertyDescription, null, cfa, stats);
+            Result.NOT_YET_STARTED, violatedPropertyDescription, null, cfa, stats, programNeverTerminates);
       }
 
       // run analysis
       result = Result.UNKNOWN; // set to unknown so that the result is correct in case of exception
 
       AlgorithmStatus status = runAlgorithm(algorithm, reached, stats);
+      programNeverTerminates = status.isProramNeverTerminating();
 
       stats.resultAnalysisTime.start();
       Set<Property> violatedProperties = findViolatedProperties(reached);
@@ -390,7 +393,7 @@ public class CPAchecker {
       CPAs.closeIfPossible(algorithm, logger);
       shutdownNotifier.unregister(interruptThreadOnShutdown);
     }
-    return new CPAcheckerResult(result, violatedPropertyDescription, reached, cfa, stats);
+    return new CPAcheckerResult(result, violatedPropertyDescription, reached, cfa, stats, programNeverTerminates);
   }
 
   private void checkIfOneValidFile(String fileDenotation) throws InvalidConfigurationException {
@@ -422,14 +425,6 @@ public class CPAchecker {
     CFA cfa = cfaCreator.parseFileAndCreateCFA(commaSplitter.splitToList(fileNamesCommaSeparated));
     stats.setCFA(cfa);
     return cfa;
-  }
-
-  private Specification createSpecification(final CFA cfa) throws InvalidConfigurationException {
-    List<Path> specFiles =
-        initialStatesFor.contains(InitialStatesFor.TARGET)
-            ? backwardSpecificationFiles
-            : specificationFiles;
-    return Specification.fromFiles(specFiles, cfa, config, logger);
   }
 
   private void printConfigurationWarnings() {
@@ -523,7 +518,6 @@ public class CPAchecker {
   private void initializeReachedSet(
       final ReachedSet pReached,
       final ConfigurableProgramAnalysis pCpa,
-      final Specification pSpecification,
       final FunctionEntryNode pAnalysisEntryFunction,
       final CFA pCfa)
       throws InvalidConfigurationException, InterruptedException {
@@ -558,7 +552,9 @@ public class CPAchecker {
           TargetLocationProvider tlp =
               new TargetLocationProviderImpl(shutdownNotifier, logger, pCfa);
           initialLocations =
-              tlp.tryGetAutomatonTargetLocations(pAnalysisEntryFunction, pSpecification);
+              tlp.tryGetAutomatonTargetLocations(
+                  pAnalysisEntryFunction,
+                  Specification.fromFiles(backwardSpecificationFiles, pCfa, config, logger));
           break;
       default:
         throw new AssertionError("Unhandled case statement: " + initialStatesFor);
@@ -567,8 +563,14 @@ public class CPAchecker {
       addToInitialReachedSet(initialLocations, isf, pReached, pCpa);
     }
 
-    if (!pReached.hasWaitingState()) {
+    if (!pReached.hasWaitingState()
+        && !(initialStatesFor.equals(Collections.singleton(InitialStatesFor.TARGET)))) {
       throw new InvalidConfigurationException("Initialization of the set of initial states failed: No analysis target found!");
+    } else {
+      logger.logf(
+          Level.FINE,
+          "Initial reached set has a waitlist of %d states.",
+          pReached.getWaitlist().size());
     }
 
   }

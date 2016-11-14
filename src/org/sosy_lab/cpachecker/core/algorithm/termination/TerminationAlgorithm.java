@@ -24,6 +24,7 @@
 package org.sosy_lab.cpachecker.core.algorithm.termination;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Comparator.comparingInt;
 import static java.util.logging.Level.FINE;
 import static java.util.logging.Level.WARNING;
 import static org.sosy_lab.cpachecker.core.interfaces.StateSpacePartition.getDefaultPartition;
@@ -31,9 +32,11 @@ import static org.sosy_lab.cpachecker.util.AbstractStates.extractLocation;
 import static org.sosy_lab.cpachecker.util.AbstractStates.extractStateByType;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.SetMultimap;
@@ -60,16 +63,19 @@ import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.Specification;
 import org.sosy_lab.cpachecker.core.algorithm.Algorithm;
 import org.sosy_lab.cpachecker.core.algorithm.termination.lasso_analysis.LassoAnalysis;
-import org.sosy_lab.cpachecker.core.algorithm.termination.lasso_analysis.LassoAnalysisLoader;
 import org.sosy_lab.cpachecker.core.algorithm.termination.lasso_analysis.LassoAnalysisResult;
+import org.sosy_lab.cpachecker.core.algorithm.termination.lasso_analysis.RankingRelation;
 import org.sosy_lab.cpachecker.core.counterexample.CounterexampleInfo;
 import org.sosy_lab.cpachecker.core.defaults.NamedProperty;
+import org.sosy_lab.cpachecker.core.defaults.SingletonPrecision;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
+import org.sosy_lab.cpachecker.core.interfaces.AbstractStateWithLocation;
 import org.sosy_lab.cpachecker.core.interfaces.ConfigurableProgramAnalysis;
 import org.sosy_lab.cpachecker.core.interfaces.Precision;
 import org.sosy_lab.cpachecker.core.interfaces.Property;
 import org.sosy_lab.cpachecker.core.interfaces.Statistics;
 import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
+import org.sosy_lab.cpachecker.core.reachedset.AggregatedReachedSets.AggregatedReachedSetManager;
 import org.sosy_lab.cpachecker.core.reachedset.ReachedSet;
 import org.sosy_lab.cpachecker.core.reachedset.ReachedSetFactory;
 import org.sosy_lab.cpachecker.cpa.arg.ARGCPA;
@@ -78,6 +84,7 @@ import org.sosy_lab.cpachecker.cpa.arg.ARGPath.ARGPathBuilder;
 import org.sosy_lab.cpachecker.cpa.arg.ARGPath.PathIterator;
 import org.sosy_lab.cpachecker.cpa.arg.ARGReachedSet;
 import org.sosy_lab.cpachecker.cpa.arg.ARGState;
+import org.sosy_lab.cpachecker.cpa.composite.CompositeState;
 import org.sosy_lab.cpachecker.cpa.termination.TerminationCPA;
 import org.sosy_lab.cpachecker.cpa.termination.TerminationState;
 import org.sosy_lab.cpachecker.exceptions.CPAEnabledAnalysisPropertyViolationException;
@@ -133,7 +140,7 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
     description = "maximal number of repeated ranking functions per loop before stopping analysis"
   )
   @IntegerOption(min = 1)
-  private int maxRepeatedRankingFunctionsPerLoop = 100;
+  private int maxRepeatedRankingFunctionsPerLoop = 10;
 
   private final TerminationStatistics statistics;
 
@@ -149,12 +156,15 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
   private final Set<CVariableDeclaration> globalDeclaration;
   private final SetMultimap<String, CVariableDeclaration> localDeclarations;
 
+  private final AggregatedReachedSetManager aggregatedReachedSetManager;
+
   public TerminationAlgorithm(
       Configuration pConfig,
       LogManager pLogger,
       ShutdownNotifier pShutdownNotifier,
       CFA pCfa,
       ReachedSetFactory pReachedSetFactory,
+      AggregatedReachedSetManager pAggregatedReachedSetManager,
       Specification pSpecification,
       Algorithm pSafetyAlgorithm,
       ConfigurableProgramAnalysis pSafetyCPA)
@@ -162,10 +172,11 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
     pConfig.inject(this);
     logger = checkNotNull(pLogger);
     shutdownNotifier = pShutdownNotifier;
-    safetyAlgorithm = checkNotNull(pSafetyAlgorithm);
-    safetyCPA = checkNotNull(pSafetyCPA);
     cfa = checkNotNull(pCfa);
     reachedSetFactory = checkNotNull(pReachedSetFactory);
+    aggregatedReachedSetManager = checkNotNull(pAggregatedReachedSetManager);
+    safetyAlgorithm = checkNotNull(pSafetyAlgorithm);
+    safetyCPA = checkNotNull(pSafetyCPA);
 
     Specification requiredSpecification = loadTerminationSpecification(pCfa, pConfig, pLogger);
     Preconditions.checkArgument(
@@ -193,17 +204,14 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
     localDeclarations = ImmutableSetMultimap.copyOf(visitor.localDeclarations);
     globalDeclaration = ImmutableSet.copyOf(visitor.globalDeclarations);
 
-    Optional<LoopStructure> loopStructure = cfa.getLoopStructure();
-    if (!loopStructure.isPresent()) {
-      throw new InvalidConfigurationException(
-          "Loop structure is not present, but required for termination analysis.");
-    }
-    statistics = new TerminationStatistics(loopStructure.get().getAllLoops().size());
-
-    // ugly class loader hack
-    LassoAnalysisLoader lassoAnalysisLoader =
-        new LassoAnalysisLoader(pConfig, pLogger, pShutdownNotifier, pCfa, statistics);
-    lassoAnalysis = lassoAnalysisLoader.load();
+    LoopStructure loopStructure =
+        cfa.getLoopStructure()
+            .orElseThrow(
+                () ->
+                    new InvalidConfigurationException(
+                        "Loop structure is not present, but required for termination analysis."));
+    statistics = new TerminationStatistics(pConfig, logger, loopStructure.getAllLoops().size());
+    lassoAnalysis = LassoAnalysis.create(pLogger, pConfig, pShutdownNotifier, pCfa, statistics);
   }
 
   /**
@@ -254,10 +262,11 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
     CFANode initialLocation = AbstractStates.extractLocation(pReachedSet.getFirstState());
     AlgorithmStatus status = AlgorithmStatus.SOUND_AND_PRECISE.withPrecise(false);
 
-    Collection<Loop> allLoops = cfa.getLoopStructure().get().getAllLoops();
+    List<Loop> allLoops = Lists.newArrayList(cfa.getLoopStructure().get().getAllLoops());
+    Collections.sort(allLoops, comparingInt(l -> l.getInnerLoopEdges().size()));
     for (Loop loop : allLoops) {
       shutdownNotifier.shutdownIfNecessary();
-      statistics.analysisOfLoopStarted();
+      statistics.analysisOfLoopStarted(loop);
 
       resetReachedSet(pReachedSet, initialLocation);
       CPAcheckerResult.Result loopTermiantion =
@@ -272,7 +281,7 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
         status = status.withSound(false);
       }
 
-      statistics.analysisOfLoopFinished();
+      statistics.analysisOfLoopFinished(loop);
     }
 
     if (status.isSound()) {
@@ -281,7 +290,7 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
 
     // We did not find a non-terminating loop.
     logger.log(Level.INFO, "Termination algorithm did not find a non-terminating loop.");
-    while (pReachedSet.hasWaitingState()) {
+    while (status.isSound() && pReachedSet.hasWaitingState()) {
       pReachedSet.popFromWaitlist();
     }
     return status;
@@ -302,10 +311,10 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
     Result result = Result.TRUE;
     while (pReachedSet.hasWaitingState() && result != Result.FALSE) {
       shutdownNotifier.shutdownIfNecessary();
-      statistics.safetyAnalysisStarted();
+      statistics.safetyAnalysisStarted(pLoop);
       AlgorithmStatus status = safetyAlgorithm.run(pReachedSet);
       terminationInformation.resetCfa();
-      statistics.safetyAnalysisFinished();
+      statistics.safetyAnalysisFinished(pLoop);
       shutdownNotifier.shutdownIfNecessary();
 
       boolean targetReached =
@@ -330,7 +339,7 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
         CounterexampleInfo counterexample =
             removeDummyLocationsFromCounterExample(originalCounterexample, nonTerminationLoopHead);
         LassoAnalysisResult lassoAnalysisResult =
-            lassoAnalysis.checkTermination(counterexample, relevantVariables);
+            lassoAnalysis.checkTermination(pLoop, counterexample, relevantVariables);
 
         if (lassoAnalysisResult.hasNonTerminationArgument()) {
           removeIntermediateStates(pReachedSet, targetState);
@@ -344,6 +353,7 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
             terminationInformation.addRankingRelation(rankingRelation);
             // Prepare reached set for next iteration.
             prepareForNextIteration(pReachedSet, targetState, initialLocation);
+            addInvariantsToAggregatedReachedSet(loopHeadState, rankingRelation);
             // a ranking relation was synthesized and the reached set was reseted
             result = Result.TRUE;
             repeatedRankingFunctionsSinceSuccessfulIteration = 0;
@@ -351,8 +361,7 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
           } else {
             totalRepeatedRankingFunctions++;
             repeatedRankingFunctionsSinceSuccessfulIteration++;
-            logger.logf(
-                WARNING, "Repeated ranking relation %s for loop %s", rankingRelation, pLoop);
+            logger.logf(WARNING, "Repeated ranking relation %s for %s", rankingRelation, pLoop);
 
             // Do not use the first reached target state again and again
             // if we cannot synthesis new termination arguments from it.
@@ -386,6 +395,21 @@ public class TerminationAlgorithm implements Algorithm, AutoCloseable, Statistic
     }
 
     return result;
+  }
+
+  private void addInvariantsToAggregatedReachedSet(
+      ARGState loopHeadState, RankingRelation rankingRelation) {
+    ReachedSet dummy = reachedSetFactory.create();
+    AbstractStateWithLocation locationState =
+        extractStateByType(loopHeadState, AbstractStateWithLocation.class);
+    rankingRelation
+        .getSupportingInvariants()
+        .stream()
+        .map(s -> ImmutableList.of(locationState, s))
+        .map(CompositeState::new)
+        .forEach(s -> dummy.add(s, SingletonPrecision.getInstance()));
+
+    aggregatedReachedSetManager.addReachedSet(dummy);
   }
 
   private Set<CVariableDeclaration> getRelevantVariables(Loop pLoop) {

@@ -492,6 +492,8 @@ class EclipseCParser implements CParser {
 
       // _Static_assert(cond, msg) feature of C11
       macrosBuilder.put("_Static_assert(c, m)", "");
+      // _Noreturn feature of C11
+      macrosBuilder.put("_Noreturn", "");
 
       // These built-ins are defined as macros
       // in org.eclipse.cdt.core.dom.parser.GNUScannerExtensionConfiguration.
@@ -571,11 +573,17 @@ class EclipseCParser implements CParser {
 
     @Override
     public Pair<String, Integer> getOriginLineFromAnalysisCodeLine(
-        String pAnalysisFile, int pAnalysisCodeLine) {
-      if (fileNameMapping.containsKey(pAnalysisFile)) {
-        pAnalysisFile = fileNameMapping.get(pAnalysisFile);
+        final String pAnalysisFile, final int pAnalysisCodeLine) {
+      final String analysisFile = fileNameMapping.getOrDefault(pAnalysisFile, pAnalysisFile);
+
+      Pair<String, Integer> result =
+          delegate.getOriginLineFromAnalysisCodeLine(pAnalysisFile, pAnalysisCodeLine);
+
+      if (result.getFirst().equals(analysisFile)) {
+        // reverse mapping
+        result = Pair.of(pAnalysisFile, result.getSecond());
       }
-      return delegate.getOriginLineFromAnalysisCodeLine(pAnalysisFile, pAnalysisCodeLine);
+      return result;
     }
   }
 }

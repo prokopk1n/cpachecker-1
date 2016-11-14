@@ -23,13 +23,10 @@
  */
 package org.sosy_lab.cpachecker.cfa.blocks.builder;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 
+import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.model.BlankEdge;
@@ -41,8 +38,12 @@ import org.sosy_lab.cpachecker.util.CFATraversal;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 import org.sosy_lab.cpachecker.util.LoopStructure.Loop;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 
 /**
@@ -52,8 +53,8 @@ public class LoopPartitioning extends PartitioningHeuristic {
 
   private Map<CFANode, Set<CFANode>> loopHeaderToLoopBody;
 
-  public LoopPartitioning(LogManager pLogger, CFA pCfa) {
-    super(pLogger, pCfa);
+  public LoopPartitioning(LogManager pLogger, CFA pCfa, Configuration pConfig) {
+    super(pLogger, pCfa, pConfig);
     loopHeaderToLoopBody = null;
   }
 
@@ -67,16 +68,6 @@ public class LoopPartitioning extends PartitioningHeuristic {
         }
       }
     }
-  }
-
-  @Override
-  protected boolean shouldBeCached(CFANode pNode) {
-    if (isMainFunction(pNode)) {
-      Preconditions.checkArgument(cfa.getMainFunction().getFunctionName().equals(pNode.getFunctionName()));
-      //main function
-      return true;
-    }
-    return isLoopHead(pNode) && !hasBlankEdgeFromLoop(pNode) && !selfLoop(pNode);
   }
 
   private boolean isMainFunction(CFANode pNode) {
@@ -101,24 +92,27 @@ public class LoopPartitioning extends PartitioningHeuristic {
   }
 
   @Override
-  protected Set<CFANode> getBlockForNode(CFANode pNode) {
-    Preconditions.checkArgument(shouldBeCached(pNode));
-
-    if (isMainFunction(pNode)) {
-      return CFATraversal.dfs().ignoreFunctionCalls().collectNodesReachableFrom(pNode);
+  protected Set<CFANode> getBlockForNode(CFANode pBlockHead) {
+    if (isMainFunction(pBlockHead)) {
+      Preconditions.checkArgument(
+          cfa.getMainFunction().getFunctionName().equals(pBlockHead.getFunctionName()));
+      return CFATraversal.dfs().ignoreFunctionCalls().collectNodesReachableFrom(pBlockHead);
     }
 
     if (loopHeaderToLoopBody == null) {
       initLoopMap();
     }
 
-    if (!loopHeaderToLoopBody.containsKey(pNode)) {
-      // loopStructure is missing in CFA or loop with multiple headers
+    if (!loopHeaderToLoopBody.containsKey(pBlockHead)
+        || !isLoopHead(pBlockHead)
+        || hasBlankEdgeFromLoop(pBlockHead)
+        || selfLoop(pBlockHead)) {
+      // loopStructure is missing in CFA or loop with multiple headers or self loop
       return null;
     }
 
-    Set<CFANode> loopBody = new HashSet<>(loopHeaderToLoopBody.get(pNode));
-    insertLoopStartState(loopBody, pNode);
+    Set<CFANode> loopBody = new HashSet<>(loopHeaderToLoopBody.get(pBlockHead));
+    insertLoopStartState(loopBody, pBlockHead);
     insertLoopReturnStates(loopBody);
     return loopBody;
   }

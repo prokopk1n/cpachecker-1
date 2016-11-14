@@ -117,6 +117,7 @@ class SMGJoinFields {
         return SMGJoinStatus.updateStatus(pCurStatus, pNewStatus);
       }
     }
+
     return pCurStatus;
   }
 
@@ -227,6 +228,7 @@ class SMGJoinFields {
         throw new SMGInconsistentException("SMGJoinFields output assertions do not hold");
       }
     }
+
   }
 
   public static void checkResultConsistency(SMG pSMG1, SMG pSMG2, SMGObject pObj1, SMGObject pObj2) throws SMGInconsistentException {

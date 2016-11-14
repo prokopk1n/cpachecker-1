@@ -23,7 +23,6 @@
  */
 package org.sosy_lab.cpachecker.cpa.smg.join;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
 import org.sosy_lab.cpachecker.cfa.types.c.CType;
@@ -44,13 +43,11 @@ import org.sosy_lab.cpachecker.cpa.smg.objects.SMGObject;
 import org.sosy_lab.cpachecker.cpa.smg.objects.SMGObjectKind;
 import org.sosy_lab.cpachecker.cpa.smg.objects.SMGRegion;
 import org.sosy_lab.cpachecker.cpa.smg.objects.dls.SMGDoublyLinkedList;
-import org.sosy_lab.cpachecker.cpa.smg.objects.generic.SMGGenericAbstractionCandidate;
 import org.sosy_lab.cpachecker.cpa.smg.objects.optional.SMGOptionalObject;
 import org.sosy_lab.cpachecker.cpa.smg.objects.sll.SMGSingleLinkedList;
 import org.sosy_lab.cpachecker.util.Pair;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 final class SMGJoinValues {
@@ -65,8 +62,6 @@ final class SMGJoinValues {
 
   private final SMGState smgState1;
   private final SMGState smgState2;
-
-  private List<SMGGenericAbstractionCandidate> abstractionCandidates;
   private boolean recoverable;
 
   private static boolean joinValuesIdentical(SMGJoinValues pJV, Integer pV1, Integer pV2) {
@@ -119,7 +114,6 @@ final class SMGJoinValues {
             pJV.status = SMGJoinStatus.updateStatus(pJV.status, v2isLessOrEqualV1);
           }
         }
-
       }
 
       if (pLevelV1 - pLevelV2 < lDiff) {
@@ -156,7 +150,6 @@ final class SMGJoinValues {
       pJV.mapping2 = jto.getMapping2();
       pJV.value = jto.getValue();
       pJV.defined = true;
-      pJV.abstractionCandidates = jto.getAbstractionCandidates();
       pJV.recoverable = jto.isRecoverable();
       return true;
     }
@@ -168,7 +161,6 @@ final class SMGJoinValues {
 
     pJV.defined = false;
     pJV.recoverable = false;
-    pJV.abstractionCandidates = ImmutableList.of();
     return false;
   }
 
@@ -187,7 +179,6 @@ final class SMGJoinValues {
 
 
     if (identicalInputSmg && SMGJoinValues.joinValuesIdentical(this, pValue1, pValue2)) {
-      abstractionCandidates = ImmutableList.of();
       recoverable = defined;
       mapping1.map(pValue1, pValue1);
       mapping2.map(pValue2, pValue1);
@@ -195,19 +186,16 @@ final class SMGJoinValues {
     }
 
     if (SMGJoinValues.joinValuesAlreadyJoined(this, pValue1, pValue2)) {
-      abstractionCandidates = ImmutableList.of();
       recoverable = defined;
       return;
     }
 
     if (SMGJoinValues.joinValuesNonPointers(this, pValue1, pValue2, levelV1, levelV2, pLDiff)) {
-      abstractionCandidates = ImmutableList.of();
       recoverable = defined;
       return;
     }
 
     if (SMGJoinValues.joinValuesMixedPointers(this, pValue1, pValue2)) {
-      abstractionCandidates = ImmutableList.of();
       recoverable = true;
       return;
     }
@@ -215,8 +203,6 @@ final class SMGJoinValues {
     if (SMGJoinValues.joinValuesPointers(this, pValue1, pValue2, levelV1, levelV2, pLDiff, identicalInputSmg, pLevelMap)) {
 
       if(defined) {
-        abstractionCandidates = ImmutableList.of();
-        recoverable = false;
         return;
       }
 
@@ -238,7 +224,6 @@ final class SMGJoinValues {
                 return;
               }
             } else {
-              recoverable = false;
               return;
             }
           }
@@ -255,7 +240,6 @@ final class SMGJoinValues {
                 return;
               }
             } else {
-              recoverable = false;
               return;
             }
           }
@@ -271,7 +255,6 @@ final class SMGJoinValues {
             return;
           }
         } else {
-          recoverable = false;
           return;
         }
 
@@ -284,17 +267,12 @@ final class SMGJoinValues {
             return;
           }
         } else {
-          recoverable = false;
           return;
         }
       } else {
-        recoverable = false;
         return;
       }
     }
-
-    abstractionCandidates = ImmutableList.of();
-    recoverable = false;
   }
 
   private Pair<Boolean, Boolean> insertRightObjectAsOptional(SMGJoinStatus pStatus, SMG pInputSMG1,
@@ -456,7 +434,7 @@ final class SMGJoinValues {
         newHve = new SMGEdgeHasValue(field.getType(), field.getOffset(), optionalObject,
             newVal);
       }
-      pDestSMG.addHasValueEdge(newHve);
+      addHasValueEdge(newHve, pDestSMG);
     }
 
     return Pair.of(true, true);
@@ -676,7 +654,7 @@ final class SMGJoinValues {
         newHve = new SMGEdgeHasValue(field.getType(), field.getOffset(), optionalObject,
             newVal);
       }
-      pDestSMG.addHasValueEdge(newHve);
+      addHasValueEdge(newHve, pDestSMG);
     }
 
     return Pair.of(true, true);
@@ -752,6 +730,13 @@ final class SMGJoinValues {
 
         mapping1.map(pointer1, resultPointer);
       } else {
+
+        if (!mapping2.containsKey(pointer2)) {
+          /*Pointer2 was never joined with another value,
+           * meaning this would just result in a cycle. Abort*/
+          return Pair.of(false, false);
+        }
+
         this.value = mapping1.get(pointer1);
         this.defined = true;
         this.inputSMG1 = inputSMG1;
@@ -843,23 +828,28 @@ final class SMGJoinValues {
     SMGEdgeHasValue newHve = new SMGEdgeHasValue(nfType, nf, list, newAdressFromDLS);
 
     if (pDestSMG.getHVEdges(SMGEdgeHasValueFilter.objectFilter(list).filterAtOffset(nf).filterHavingValue(newAdressFromDLS)).isEmpty()) {
-      pDestSMG.addHasValueEdge(newHve);
+      addHasValueEdge(newHve, pDestSMG);
     }
 
     if (smgState1.getAddress(pTarget, hfo, SMGTargetSpecifier.FIRST) == null) {
       CType nfType2 = getType(pTarget, nfo, inputSMG1);
       SMGEdgeHasValue newHve2 = new SMGEdgeHasValue(nfType2, nfo, list, newAdressFromDLS);
-      pDestSMG.addHasValueEdge(newHve2);
+      addHasValueEdge(newHve2, pDestSMG);
     }
 
     if (pTarget.getKind() == SMGObjectKind.DLL
         && smgState1.getAddress(pTarget, hfo, SMGTargetSpecifier.LAST) == null) {
       CType nfType2 = getType(pTarget, pfo, inputSMG1);
       SMGEdgeHasValue newHve2 = new SMGEdgeHasValue(nfType2, pfo, list, newAdressFromDLS);
-      pDestSMG.addHasValueEdge(newHve2);
+      addHasValueEdge(newHve2, pDestSMG);
     }
 
     return Pair.of(true, true);
+  }
+
+  private void addHasValueEdge(SMGEdgeHasValue pNewHve, SMG pDestSMG) {
+    pDestSMG.addHasValueEdge(pNewHve);
+    smgState1.getSourcesOfHve().registerHasValueEdge(pNewHve);
   }
 
   private CType getType(SMGObject pTarget, int pNf, SMG inputSMG1) {
@@ -943,6 +933,15 @@ final class SMGJoinValues {
 
         mapping2.map(pointer2, resultPointer);
       } else {
+
+        if (!mapping1.containsKey(pointer1)) {
+          /* Pointer1 was never joined with another value,
+           * meaning this would just result in a cycle. Abort*/
+
+          //TODO : Is this always correct?
+          return Pair.of(false, false);
+        }
+
         this.value = mapping2.get(pointer2);
         this.defined = true;
         this.inputSMG1 = inputSMG1;
@@ -1032,20 +1031,20 @@ final class SMGJoinValues {
     SMGEdgeHasValue newHve = new SMGEdgeHasValue(nfType, nf, list, newAdressFromDLS);
 
     if (pDestSMG.getHVEdges(SMGEdgeHasValueFilter.objectFilter(list).filterAtOffset(nf).filterHavingValue(newAdressFromDLS)).isEmpty()) {
-      pDestSMG.addHasValueEdge(newHve);
+      addHasValueEdge(newHve, pDestSMG);
     }
 
     if (smgState2.getAddress(pTarget, hfo, SMGTargetSpecifier.FIRST) == null) {
       CType nfType2 = getType(pTarget, nfo, inputSMG2);
       SMGEdgeHasValue newHve2 = new SMGEdgeHasValue(nfType2, nfo, list, newAdressFromDLS);
-      pDestSMG.addHasValueEdge(newHve2);
+      addHasValueEdge(newHve2, pDestSMG);
     }
 
     if (pTarget.getKind() == SMGObjectKind.DLL
         && smgState2.getAddress(pTarget, hfo, SMGTargetSpecifier.LAST) == null) {
       CType nfType2 = getType(pTarget, nfo, inputSMG2);
       SMGEdgeHasValue newHve2 = new SMGEdgeHasValue(nfType2, pfo, list, newAdressFromDLS);
-      pDestSMG.addHasValueEdge(newHve2);
+      addHasValueEdge(newHve2, pDestSMG);
     }
 
     return Pair.of(true, true);
@@ -1136,10 +1135,15 @@ final class SMGJoinValues {
               pDestSMG.addPointsToEdge(newPtEdge);
             }
           }
+        } else {
+          if (!pDestSMG.getValues().contains(newVal)) {
+            pDestSMG.addValue(newVal);
+            pMapping.map(subDlsValue, newVal);
+          }
         }
 
         if (pDestSMG.getHVEdges(SMGEdgeHasValueFilter.objectFilter(listCopy).filterAtOffset(hve.getOffset())).isEmpty()) {
-          pDestSMG.addHasValueEdge(new SMGEdgeHasValue(hve.getType(), hve.getOffset(), listCopy, newVal));
+          addHasValueEdge(new SMGEdgeHasValue(hve.getType(), hve.getOffset(), listCopy, newVal), pDestSMG);
         }
       }
     }
@@ -1212,10 +1216,15 @@ final class SMGJoinValues {
             pDestSMG.addPointsToEdge(newPtEdge);
           }
         }
+      } else {
+        if (!pDestSMG.getValues().contains(newVal)) {
+          pDestSMG.addValue(newVal);
+          pMapping.map(subDlsValue, newVal);
+        }
       }
 
       if (pDestSMG.getHVEdges(SMGEdgeHasValueFilter.objectFilter(newObj).filterAtOffset(hve.getOffset())).isEmpty()) {
-        pDestSMG.addHasValueEdge(new SMGEdgeHasValue(hve.getType(), hve.getOffset(), newObj, newVal));
+        addHasValueEdge(new SMGEdgeHasValue(hve.getType(), hve.getOffset(), newObj, newVal), pDestSMG);
       }
     }
   }
@@ -1250,24 +1259,5 @@ final class SMGJoinValues {
 
   public boolean isDefined() {
     return defined;
-  }
-
-  /**
-   * Signifies, if the part of the sub-smg rooted at the
-   * given value can possibly be joined through abstraction.
-   *
-   * @return true, if join is defined, or join through abstraction may be a possibility,
-   * false otherwise.
-   */
-  public boolean isRecoverable() {
-    return recoverable;
-  }
-
-  public boolean subSmgHasAbstractionsCandidates() {
-    return false;
-  }
-
-  public List<SMGGenericAbstractionCandidate> getAbstractionCandidates() {
-    return abstractionCandidates;
   }
 }

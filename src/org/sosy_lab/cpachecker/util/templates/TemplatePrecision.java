@@ -24,6 +24,7 @@
 package org.sosy_lab.cpachecker.util.templates;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSet.Builder;
 import com.google.common.collect.ListMultimap;
@@ -54,8 +55,10 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CSimpleDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CStatement;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
+import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.model.c.CAssumeEdge;
 import org.sosy_lab.cpachecker.cfa.model.c.CFunctionCallEdge;
+import org.sosy_lab.cpachecker.cfa.model.c.CFunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.model.c.CReturnStatementEdge;
 import org.sosy_lab.cpachecker.cfa.model.c.CStatementEdge;
 import org.sosy_lab.cpachecker.cfa.types.c.CBasicType;
@@ -64,6 +67,7 @@ import org.sosy_lab.cpachecker.core.interfaces.Precision;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 import org.sosy_lab.cpachecker.util.LiveVariables;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -89,10 +93,14 @@ public class TemplatePrecision implements Precision {
 
   @Option(secure=true, description="Generate templates from all program "
       + "statements")
-  private boolean generateFromStatements = true;
+  private boolean generateFromStatements = false;
 
   @Option(secure=true, description="Maximum size for the generated template")
   private int maxExpressionSize = 1;
+
+  @Option(secure=true, description="Generate difference constraints."
+      + "This option is redundant for `maxExpressionSize` >= 2.")
+  private boolean generateDifferences = false;
 
   @Option(secure=true, description="Allowed coefficients in a template.")
   private Set<Rational> allowedCoefficients = ImmutableSet.of(
@@ -108,6 +116,11 @@ public class TemplatePrecision implements Precision {
       description="Do not generate templates with threshold larger than specified."
           + " Set to '-1' for no limit.")
   private long templateConstantThreshold = 100;
+
+  @Option(secure=true,
+      description="Force the inclusion of function parameters into the "
+          + "generated templates. Required for summaries computation.")
+  private boolean includeFunctionParameters = false;
 
   public enum VarFilteringStrategy {
 
@@ -131,7 +144,7 @@ public class TemplatePrecision implements Precision {
   private final LogManager logger;
 
   private final ImmutableSet<Template> extractedFromAssertTemplates;
-  private final ImmutableSet<Template> extractedTemplates;
+  private ImmutableSet<Template> extractedTemplates;
   private final Set<Template> extraTemplates;
   private final Set<Template> generatedTemplates;
   private final TemplateToFormulaConversionManager
@@ -139,7 +152,6 @@ public class TemplatePrecision implements Precision {
 
   // Temporary variables created by CPA checker.
   private static final String TMP_VARIABLE = "__CPAchecker_TMP";
-  private static final String RET_VARIABLE = "__retval__";
 
   // todo: do not hardcode, use automaton.
   private static final String ASSERT_FUNC_NAME = "assert";
@@ -151,6 +163,13 @@ public class TemplatePrecision implements Precision {
   private final ListMultimap<CFANode, Template> cache =
       ArrayListMultimap.create();
   private final ImmutableSet<ASimpleDeclaration> allVariables;
+
+  /**
+   * Mapping from function name to a set of function parameters.
+   * Variables represented parameters should be kept in precision
+   * at the return node in order to compute summaries.
+   */
+  private final ImmutableMap<String, Set<ASimpleDeclaration>> functionParameters;
 
   public TemplatePrecision(
       LogManager pLogger,
@@ -184,6 +203,19 @@ public class TemplatePrecision implements Precision {
 
     allVariables = ImmutableSet.copyOf(
         cfa.getLiveVariables().get().getAllLiveVariables());
+
+    ImmutableMap.Builder<String, Set<ASimpleDeclaration>> builder = ImmutableMap.builder();
+    if (includeFunctionParameters) {
+      for (FunctionEntryNode node : cfa.getAllFunctionHeads()) {
+        CFunctionEntryNode casted = (CFunctionEntryNode) node;
+
+        Set<ASimpleDeclaration> qualifiedNames = casted.getFunctionParameters()
+            .stream()
+            .map(p -> p.asVariableDeclaration()).collect(Collectors.toSet());
+        builder.put(node.getFunctionName(), qualifiedNames);
+      }
+    }
+    functionParameters = builder.build();
   }
 
   /**
@@ -213,8 +245,9 @@ public class TemplatePrecision implements Precision {
         Ordering.from(
             Comparator.<Template>comparingInt(
                 (template) -> template.getLinearExpression().size())
+                .thenComparingInt(t -> t.toString().trim().startsWith("-") ? 1 : 0)
                 .thenComparing(Template::toString))
-            .immutableSortedCopy(outBuild);
+                .immutableSortedCopy(outBuild);
 
     cache.putAll(node, sortedTemplates);
     return cache.get(node);
@@ -277,7 +310,25 @@ public class TemplatePrecision implements Precision {
       returned.addAll(generated);
     }
 
+    if (generateDifferences) {
+      returned.addAll(generateDifferenceTemplates(vars));
+    }
+
     return returned;
+  }
+
+  private Set<Template> generateDifferenceTemplates(Collection<CIdExpression> vars) {
+    List<LinearExpression<CIdExpression>> out = new ArrayList<>();
+    for (CIdExpression v1 : vars) {
+      for (CIdExpression v2 : vars) {
+        out.add(LinearExpression.ofVariable(v1).sub(LinearExpression.ofVariable(v2)));
+      }
+    }
+    out = filterToSameType(out);
+    return out.stream()
+        .filter(t -> !t.isEmpty())
+        .map(t -> Template.of(t))
+        .collect(Collectors.toSet());
   }
 
   /**
@@ -321,8 +372,7 @@ public class TemplatePrecision implements Precision {
   private boolean shouldProcessVariable(ASimpleDeclaration var) {
     return !var.getQualifiedName().contains(TMP_VARIABLE)
         && var.getType() instanceof CSimpleType
-        && !var.getType().toString().contains("*")
-        && !var.getQualifiedName().contains(RET_VARIABLE);
+        && !var.getType().toString().contains("*");
   }
 
   /**
@@ -392,8 +442,12 @@ public class TemplatePrecision implements Precision {
           !liveVariables.isVariableLive(id.getDeclaration(), node)) {
         return true;
       }
-      if (varFiltering == VarFilteringStrategy.ALL_LIVE &&
-          !liveVariables.isVariableLive(id.getDeclaration(), node)) {
+      if (varFiltering == VarFilteringStrategy.ALL_LIVE
+          && !liveVariables.isVariableLive(id.getDeclaration(), node)
+
+          // Enforce inclusion of function parameters.
+          && !functionParameters.getOrDefault(node.getFunctionName(), ImmutableSet.of())
+            .contains(id.getDeclaration())) {
         return false;
       }
     }
@@ -405,7 +459,7 @@ public class TemplatePrecision implements Precision {
     for (CFANode node : cfa.getAllNodes()) {
       for (CFAEdge edge : CFAUtils.allEnteringEdges(node)) {
         out.addAll(
-            extractTemplatesFromEdge(edge).stream().filter(t -> t.size() > 1)
+            extractTemplatesFromEdge(edge).stream().filter(t -> t.size() >= 1)
                 .collect(Collectors.toSet()));
       }
     }
@@ -576,6 +630,13 @@ public class TemplatePrecision implements Precision {
         return true;
       }
 
+      if (!generateFromStatements) {
+        logger.log(Level.INFO, "Generating templates from all program statements.");
+        generateFromStatements = true;
+        extractedTemplates = ImmutableSet.copyOf(extractTemplates());
+        return true;
+      }
+
       if (maxExpressionSize == 1) {
         logger.log(Level.INFO, "Template Refinement: Generating octagons");
         maxExpressionSize = 2;
@@ -624,9 +685,12 @@ public class TemplatePrecision implements Precision {
   }
 
 
-  public Set<ASimpleDeclaration> getVarsForNode(CFANode node) {
+  private Set<ASimpleDeclaration> getVarsForNode(CFANode node) {
     if (varFiltering == VarFilteringStrategy.ALL_LIVE) {
-      return cfa.getLiveVariables().get().getLiveVariablesForNode(node).toSet();
+      return Sets.union(
+          cfa.getLiveVariables().get().getLiveVariablesForNode(node).toSet(),
+          functionParameters.getOrDefault(node.getFunctionName(), ImmutableSet.of())
+      );
     } else {
       return allVariables;
     }

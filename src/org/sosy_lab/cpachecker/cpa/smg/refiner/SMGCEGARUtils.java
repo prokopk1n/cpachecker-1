@@ -23,13 +23,21 @@
  */
 package org.sosy_lab.cpachecker.cpa.smg.refiner;
 
+import com.google.common.base.Function;
+import com.google.common.base.Predicate;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.Iterables;
 
 import org.sosy_lab.cpachecker.core.interfaces.Precision;
 import org.sosy_lab.cpachecker.cpa.arg.ARGReachedSet;
 import org.sosy_lab.cpachecker.cpa.arg.ARGState;
+import org.sosy_lab.cpachecker.cpa.automaton.AutomatonState;
+import org.sosy_lab.cpachecker.util.AbstractStates;
 import org.sosy_lab.cpachecker.util.Precisions;
+
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Set;
 
 public class SMGCEGARUtils {
 
@@ -45,5 +53,46 @@ public class SMGCEGARUtils {
     });
 
     return (SMGPrecision) Iterables.getOnlyElement(precisions);
+  }
+
+  public static SMGPrecision extractSMGPrecision(ARGReachedSet pReached) {
+
+    Collection<Precision> precisions = pReached.asReachedSet().getPrecisions();
+    Iterator<Precision> it = precisions.iterator();
+    Precision firstPrecision = it.next();
+
+    SMGPrecision smgPrecision =
+
+        (SMGPrecision) Iterables
+            .getOnlyElement(Precisions.asIterable(firstPrecision).filter((Precision prec) -> {
+              return prec instanceof SMGPrecision;
+            }));
+
+    while (it.hasNext()) {
+      SMGPrecision nextPrecision =
+
+          (SMGPrecision) Iterables
+              .getOnlyElement(Precisions.asIterable(it.next()).filter((Precision prec) -> {
+                return prec instanceof SMGPrecision;
+              }));
+      smgPrecision = smgPrecision.join(nextPrecision);
+    }
+
+    return smgPrecision;
+  }
+
+  public static Set<String> extractTargetAutomatonNames(ARGState target) {
+    Predicate<? super AutomatonState> automatonStateIsTarget = (AutomatonState state) -> {
+      return state.isTarget() ? true : false;
+    };
+
+    Function<AutomatonState, String> toNameFunction = (AutomatonState state) -> {
+      return state.getOwningAutomatonName();
+    };
+
+    Set<String> automatonNames =
+        AbstractStates.asIterable(target).filter(AutomatonState.class)
+            .filter(automatonStateIsTarget).transform(toNameFunction).toSet();
+    return automatonNames;
   }
 }

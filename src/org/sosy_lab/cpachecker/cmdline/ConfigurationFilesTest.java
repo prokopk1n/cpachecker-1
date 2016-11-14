@@ -117,7 +117,9 @@ public class ConfigurationFilesTest {
           "solver.z3.requireProofs",
           // present in many config files that explicitly disable counterexample checks
           "counterexample.checker",
-          "counterexample.checker.config");
+          "counterexample.checker.config",
+          // LoopstackCPA can be removed from inhering configuration.
+          "cpa.loopstack.loopIterationsBeforeAbstraction");
 
   @Options
   private static class OptionsWithSpecialHandlingInTest {
@@ -215,7 +217,7 @@ public class ConfigurationFilesTest {
     final boolean isJava = options.language == Language.JAVA;
 
     final TestLogHandler logHandler = new TestLogHandler();
-    logHandler.setLevel(Level.INFO);
+    logHandler.setLevel(Level.ALL);
     final LogManager logger = BasicLogManager.createWithHandler(logHandler);
 
     final CPAchecker cpachecker;

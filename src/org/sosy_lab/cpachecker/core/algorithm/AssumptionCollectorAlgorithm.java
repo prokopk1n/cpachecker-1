@@ -58,8 +58,8 @@ import org.sosy_lab.cpachecker.util.AbstractStates;
 import org.sosy_lab.cpachecker.util.assumptions.AssumptionWithLocation;
 import org.sosy_lab.cpachecker.util.predicates.smt.FormulaManagerView;
 import org.sosy_lab.cpachecker.util.statistics.AbstractStatistics;
-import org.sosy_lab.solver.api.BooleanFormula;
-import org.sosy_lab.solver.api.BooleanFormulaManager;
+import org.sosy_lab.java_smt.api.BooleanFormula;
+import org.sosy_lab.java_smt.api.BooleanFormulaManager;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -242,7 +242,7 @@ public class AssumptionCollectorAlgorithm implements Algorithm, StatisticsProvid
    * Create an assumption that is sufficient to exclude an abstract state
    */
   private void addAvoidingAssumptions(AssumptionWithLocation invariant, AbstractState state) {
-    addAssumption(invariant, bfmgr.makeBoolean(false), state);
+    addAssumption(invariant, bfmgr.makeFalse(), state);
   }
 
   private void produceAssumptionAutomaton(Appendable output, ReachedSet reached) throws IOException {

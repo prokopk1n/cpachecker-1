@@ -44,15 +44,12 @@ import org.sosy_lab.cpachecker.cpa.smg.SMGExpressionEvaluator.SMGAddressValueAnd
 import org.sosy_lab.cpachecker.cpa.smg.SMGTransferRelation.SMGAddressValue;
 import org.sosy_lab.cpachecker.cpa.smg.SMGTransferRelation.SMGKnownExpValue;
 import org.sosy_lab.cpachecker.cpa.smg.SMGTransferRelation.SMGKnownSymValue;
-import org.sosy_lab.cpachecker.cpa.smg.SMGTransferRelation.SMGUnknownValue;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.CLangSMG;
 import org.sosy_lab.cpachecker.cpa.smg.objects.SMGObject;
 import org.sosy_lab.cpachecker.cpa.smg.objects.SMGRegion;
 import org.sosy_lab.cpachecker.cpa.smg.objects.dls.SMGDoublyLinkedList;
 
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class SMGStateTest {
@@ -153,12 +150,9 @@ public class SMGStateTest {
     smg1.setValidity(l4, true);
     smg1.setValidity(l5, true);
 
-    Map<SMGKnownSymValue, SMGKnownExpValue> empty = new java.util.HashMap<>();
-    SMGState smg1State = new SMGState(logger, true,
-        true, SMGRuntimeCheck.NONE, smg1,
-        new AtomicInteger(1), 0, empty, 4, false, false);
+    SMGState smg1State = new SMGState(logger, smg1);
 
-    SMGObject head = smg1State.addGlobalVariable(8, "head");
+    SMGObject head = smg1State.addGlobalVariable(SMGKnownExpValue.valueOf(8), "head");
     smg1State.addPointsToEdge(head, 0, 5);
 
     smg1State.writeValue(head, 0, pointerType, SMGKnownSymValue.valueOf(6));
@@ -269,13 +263,10 @@ public class SMGStateTest {
    heap.setValidity(l4, true);
    heap.setValidity(l5, true);
 
-    Map<SMGKnownSymValue, SMGKnownExpValue> empty = new java.util.HashMap<>();
-    SMGState smg1State = new SMGState(logger, true,
-        true, SMGRuntimeCheck.NONE, heap,
-        new AtomicInteger(1), 0, empty, 4, false, false);
+    SMGState smg1State = new SMGState(logger, heap);
 
     smg1State.addStackFrame(functionDeclaration3);
-    SMGObject head = smg1State.addGlobalVariable(8, "head");
+    SMGObject head = smg1State.addGlobalVariable(SMGKnownExpValue.valueOf(8), "head");
     smg1State.addPointsToEdge(head, 0, 5);
 
     smg1State.writeValue(head, 0, pointerType, SMGKnownSymValue.valueOf(6));
@@ -457,7 +448,7 @@ public class SMGStateTest {
 
     // Write a 8b value at index 4
     // We should see three Has-Value edges: 4b zero, 8b just written, 4b zero
-    SMGEdgeHasValue hv8at4 = state.writeValue(pt.getObject(), 4, mockType8b, SMGUnknownValue.getInstance()).getNewEdge();
+    SMGEdgeHasValue hv8at4 = state.writeValue(pt.getObject(), 4, mockType8b, SMGValueFactory.getNewSymbolicValue()).getNewEdge();
     state.performConsistencyCheck(SMGRuntimeCheck.FORCED);
     values_for_obj = state.getHVEdges(SMGEdgeHasValueFilter.objectFilter(pt.getObject()));
     Assert.assertEquals(3, values_for_obj.size());

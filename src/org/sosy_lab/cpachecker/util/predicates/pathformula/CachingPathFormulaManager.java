@@ -32,9 +32,9 @@ import org.sosy_lab.cpachecker.cpa.arg.ARGState;
 import org.sosy_lab.cpachecker.exceptions.CPATransferException;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCCodeException;
 import org.sosy_lab.cpachecker.util.Pair;
-import org.sosy_lab.solver.api.BooleanFormula;
-import org.sosy_lab.solver.api.Formula;
-import org.sosy_lab.solver.api.Model.ValueAssignment;
+import org.sosy_lab.java_smt.api.BooleanFormula;
+import org.sosy_lab.java_smt.api.Formula;
+import org.sosy_lab.java_smt.api.Model.ValueAssignment;
 
 import java.util.HashMap;
 import java.util.List;
@@ -145,8 +145,9 @@ public class CachingPathFormulaManager implements PathFormulaManager {
   }
 
   @Override
-  public Formula makeFormulaForVariable(PathFormula pContext, String pVarName, CType pType) {
-    return delegate.makeFormulaForVariable(pContext, pVarName, pType);
+  public Formula makeFormulaForVariable(
+      PathFormula pContext, String pVarName, CType pType, boolean forcePointerDereference) {
+    return delegate.makeFormulaForVariable(pContext, pVarName, pType, forcePointerDereference);
   }
 
   @Override
