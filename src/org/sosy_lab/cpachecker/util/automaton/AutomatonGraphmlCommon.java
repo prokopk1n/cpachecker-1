@@ -126,7 +126,9 @@ public class AutomatonGraphmlCommon {
     FUNCTIONEXIT("returnFrom", ElementType.EDGE, "returnFromFunction", "string"),
     CFAPREDECESSORNODE("predecessor", ElementType.EDGE, "predecessor", "string"),
     CFASUCCESSORNODE("successor", ElementType.EDGE, "successor", "string"),
-    GRAPH_TYPE("witness-type", ElementType.GRAPH, "witness-type", "string");
+    GRAPH_TYPE("witness-type", ElementType.GRAPH, "witness-type", "string"),
+    NOTE("note", ElementType.EDGE, "note", "string"),
+    WARNING("warning", ElementType.EDGE, "warning", "string");
 
     public final String id;
     public final ElementType keyFor;
@@ -332,7 +334,13 @@ public class AutomatonGraphmlCommon {
         case LINUX32:
           graph.appendChild(createDataElement(KeyDef.ARCHITECTURE, "32bit"));
           break;
+        case LINUX32_BITFIELD:
+          graph.appendChild(createDataElement(KeyDef.ARCHITECTURE, "32bit"));
+          break;
         case LINUX64:
+          graph.appendChild(createDataElement(KeyDef.ARCHITECTURE, "64bit"));
+          break;
+        case LINUX64_BITFIELD:
           graph.appendChild(createDataElement(KeyDef.ARCHITECTURE, "64bit"));
           break;
         default:

@@ -41,6 +41,8 @@ import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractStateWithDummyLocation;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractStateWithLocations;
 import org.sosy_lab.cpachecker.core.interfaces.Graphable;
+import org.sosy_lab.cpachecker.cpa.composite.CompositeState;
+import org.sosy_lab.cpachecker.cpa.smg.SMGState;
 import org.sosy_lab.cpachecker.util.AbstractStates;
 
 import java.util.ArrayDeque;
@@ -349,6 +351,26 @@ public class ARGState extends AbstractSingleWrapperState implements Comparable<A
     return Optional.ofNullable(counterexample);
   }
 
+  /**
+   * Get specified by pClass wrapped states
+   * @return
+   */
+  public List<AbstractState> getWrappedStatesByClass(Class<? extends AbstractState> pClass) {
+    List<AbstractState> result = new ArrayList<>();
+    AbstractState wrappedState = getWrappedState();
+    if (pClass.isInstance(wrappedState)) {
+      result.add(wrappedState);
+    }
+    if (wrappedState instanceof CompositeState) {
+      List<AbstractState> states = ((CompositeState) wrappedState).getWrappedStates();
+      for (AbstractState state : states) {
+        if (pClass.isInstance(state)) {
+          result.add(state);
+        }
+      }
+    }
+    return result;
+  }
   // small and less important stuff
 
   public int getStateId() {

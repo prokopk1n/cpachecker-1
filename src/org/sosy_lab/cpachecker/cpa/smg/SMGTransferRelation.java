@@ -299,6 +299,7 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
 
       if (bufferAddress.isUnknown() || countValue.isUnknown()) {
         currentState = currentState.setInvalidWrite();
+        currentState.setErrorDescription("Can't evaluate dst or count for memset");
         return SMGAddressValueAndState.of(currentState);
       }
 
@@ -597,6 +598,8 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
           logger.log(Level.INFO, "Free on expression ", pointerExp.toASTString(),
               " is invalid, because the target of the address could not be calculated.");
           SMGState invalidFreeState = currentState.setInvalidFree();
+          invalidFreeState.setErrorDescription("Free on expression " + pointerExp.toASTString() +
+              " is invalid, because the target of the address could not be calculated.");
           resultStates.add(invalidFreeState);
           continue;
         }
@@ -735,10 +738,15 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
           if (sizeValue.isUnknown()) {
             currentState = currentState.setInvalidWrite();
             currentState = currentState.setInvalidRead();
+            currentState.setErrorDescription("Can't evaluate memcpy dst and src");
+//            currentState.addInvalidObject(targetStr1Address);
+//            currentState.addInvalidObject(sourceStr2Address);
           } else if (targetStr1Address.isUnknown()) {
             currentState = currentState.setInvalidWrite();
+            currentState.setErrorDescription("Can't evaluate memcpy dst");
           } else {
             currentState = currentState.setInvalidRead();
+            currentState.setErrorDescription("Can't evaluate memcpy src");
           }
         }
         if (targetStr1Address.isUnknown()) {
@@ -933,6 +941,8 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
 
     if (smgPredicateManager.isErrorPathFeasible(smgState)) {
       smgState = smgState.setInvalidRead();
+      smgState.setErrorDescription("Predicate extension shows possibility of overflow on current "
+          + "code block");
     }
     smgState.resetErrorRelation();
 
@@ -962,6 +972,8 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
 
     if (smgPredicateManager.isErrorPathFeasible(newState)) {
       newState = newState.setInvalidRead();
+      newState.setErrorDescription("Predicate extension shows possibility of overflow on current "
+          + "code block");
     }
 
     newState.resetErrorRelation();
@@ -1173,6 +1185,8 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
 
     if (smgPredicateManager.isErrorPathFeasible(smgState)) {
       smgState = smgState.setInvalidRead();
+      smgState.setErrorDescription("Predicate extension shows possibility of overflow on current "
+          + "code block");
     }
     smgState.resetErrorRelation();
 
@@ -1345,6 +1359,8 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
           newStates = builtins.evaluateConfigurableAllocationFunction(cFCExpression, newState, pCfaEdge).asSMGStateList();
 
           for (SMGState state : newStates) {
+            state.setErrorDescription("Calling '" + functionName + "' and not using the result, "
+                + "resulting in memory leak.");
             state.setMemLeak();
           }
         }
@@ -1589,8 +1605,11 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
                 pFieldOffset, pRValueType.toASTString(""), pMemoryOfField.toString());
         return msg;
       });
-
-      return pNewState.setInvalidWrite();
+      SMGState newState = pNewState.setInvalidWrite();
+      newState.setErrorDescription("Field (" + pFieldOffset + ", " + pRValueType.toASTString("")
+          + ") does not fit object " + pMemoryOfField);
+      newState.addInvalidObject(pMemoryOfField);
+      return newState;
     }
 
     if (pValue.isUnknown()) {
@@ -1988,7 +2007,9 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
         throws SMGInconsistentException, UnrecognizedCCodeException {
 
       if (pOffset.isUnknown() || pObject == null) {
-        return SMGValueAndState.of(pSmgState.setInvalidRead());
+        SMGState newState = pSmgState.setInvalidRead();
+        newState.setErrorDescription("Can't evaluate offset or object");
+        return SMGValueAndState.of(newState);
       }
 
       int fieldOffset = pOffset.getAsInt();
@@ -2003,7 +2024,12 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
              fieldOffset, ", ", pType.toASTString(""), ")",
             " does not fit object ", pObject, ".");
 
-        return SMGValueAndState.of(pSmgState.setInvalidRead());
+        SMGState newState = pSmgState.setInvalidRead();
+        newState.setErrorDescription(pEdge.getRawStatement() + ": Field (" + fieldOffset/8 + ", " +
+            pType.toASTString("") + ") " + "does not fit object " + pObject + ".");
+        newState.addInvalidObject(pObject);
+
+        return SMGValueAndState.of(newState);
       }
 
       return pSmgState.forceReadValue(pObject, fieldOffset, pType);
