@@ -399,7 +399,7 @@ public class SMGExpressionEvaluator {
 
         if (!(ownerType.getKind() == ComplexTypeKind.UNION)) {
           offset = offset + padding + getSizeof(pEdge, getRealExpressionType(typeMember.getType()),
-              pState, expression);
+              pState, expression).getAsInt();
         }
       }
     }
@@ -2397,6 +2397,10 @@ public class SMGExpressionEvaluator {
     return new LValueAssignmentVisitor(pCfaEdge, pNewState);
   }
 
+  protected CSizeOfVisitor getBitSizeOfVisitor(CFAEdge pEdge, SMGState pState) {
+    return new CBitSizeOfVisitor(machineModel, pEdge, pState, logger, trackValueSources);
+  }
+
   protected CSizeOfVisitor getSizeOfVisitor(CFAEdge pEdge, SMGState pState) {
     return new CSizeOfVisitor(machineModel, pEdge, pState, logger, trackValueSources);
   }
@@ -2652,15 +2656,15 @@ public class SMGExpressionEvaluator {
         CFAEdge pEdge,
         SMGState pState,
         LogManagerWithoutDuplicates logger,
-        CExpression pExpression) {
-      super(pModel, pEdge, pState, logger, pExpression);
+        CExpression pExpression, boolean pTrackExpressionSources) {
+      super(pModel, pEdge, pState, logger, pExpression, pTrackExpressionSources);
     }
 
     public CBitSizeOfVisitor(
         MachineModel pModel,
         CFAEdge pEdge,
-        SMGState pState, LogManagerWithoutDuplicates pLogger) {
-      super(pModel, pEdge, pState, pLogger);
+        SMGState pState, LogManagerWithoutDuplicates pLogger , boolean pTrackExpressionSources) {
+      super(pModel, pEdge, pState, pLogger, pTrackExpressionSources);
     }
 
     @Override
@@ -2736,7 +2740,7 @@ public class SMGExpressionEvaluator {
       edge = pEdge;
       state = pState;
       expression = null;
-      eval = new SMGExpressionEvaluator(pLogger, pModel);
+      eval = new SMGExpressionEvaluator(pLogger, pModel, pTrackExpressionSources);
       sizeofCharInBits = MachineModel.getSizeofCharInBits();
 
       if (pTrackExpressionSources) {

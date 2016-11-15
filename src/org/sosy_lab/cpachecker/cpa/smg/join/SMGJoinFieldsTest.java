@@ -380,48 +380,44 @@ public class SMGJoinFieldsTest {
     smg08.addHasValueEdge(new SMGEdgeHasValue(mockType4b, 4, object, smg08.getNullValue()));
 
     Assert.assertEquals(SMGJoinStatus.INCOMPARABLE,
-        SMGJoinFields.joinFieldsRelaxStatus(smg04.getNullBytesForObject(object),
-            smg48.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg04, smg48,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
     Assert.assertEquals(SMGJoinStatus.INCOMPARABLE,
-        SMGJoinFields.joinFieldsRelaxStatus(smg04.getNullBytesForObject(object),
-            smg26.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg04, smg26,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
     Assert.assertEquals(SMGJoinStatus.EQUAL,
-        SMGJoinFields.joinFieldsRelaxStatus(smg04.getNullBytesForObject(object),
-            smg08.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg04, smg08,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
 
     Assert.assertEquals(SMGJoinStatus.INCOMPARABLE,
-        SMGJoinFields.joinFieldsRelaxStatus(smg48.getNullBytesForObject(object),
-            smg04.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg48, smg04,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
     Assert.assertEquals(SMGJoinStatus.INCOMPARABLE,
-        SMGJoinFields.joinFieldsRelaxStatus(smg48.getNullBytesForObject(object), smg26.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg48, smg26,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
     Assert.assertEquals(SMGJoinStatus.EQUAL,
-        SMGJoinFields.joinFieldsRelaxStatus(smg48.getNullBytesForObject(object), smg08.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg48, smg08,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
 
     Assert.assertEquals(SMGJoinStatus.INCOMPARABLE,
-        SMGJoinFields.joinFieldsRelaxStatus(smg26.getNullBytesForObject(object), smg04.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg26, smg04,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
     Assert.assertEquals(SMGJoinStatus.INCOMPARABLE,
-        SMGJoinFields.joinFieldsRelaxStatus(smg26.getNullBytesForObject(object), smg48.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg26, smg48,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
     Assert.assertEquals(SMGJoinStatus.EQUAL,
-        SMGJoinFields.joinFieldsRelaxStatus(smg26.getNullBytesForObject(object), smg08.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg26, smg08,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
 
     Assert.assertEquals(SMGJoinStatus.INCOMPARABLE,
-        SMGJoinFields.joinFieldsRelaxStatus(smg08.getNullBytesForObject(object), smg04.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg08, smg04,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
     Assert.assertEquals(SMGJoinStatus.INCOMPARABLE,
-        SMGJoinFields.joinFieldsRelaxStatus(smg08.getNullBytesForObject(object), smg48.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg08, smg48,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
     Assert.assertEquals(SMGJoinStatus.INCOMPARABLE,
-        SMGJoinFields.joinFieldsRelaxStatus(smg08.getNullBytesForObject(object), smg26.getNullBytesForObject(object),
-            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE));
+        SMGJoinFields.joinFieldsRelaxStatus(smg08, smg26,
+            SMGJoinStatus.EQUAL, SMGJoinStatus.INCOMPARABLE, object));
   }
 
   @Test(expected=IllegalArgumentException.class)

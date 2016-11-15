@@ -75,7 +75,7 @@ import org.sosy_lab.cpachecker.cpa.smg.objects.SMGRegion;
 import org.sosy_lab.cpachecker.cpa.smg.objects.dls.SMGDoublyLinkedList;
 import org.sosy_lab.cpachecker.cpa.smg.objects.optional.SMGOptionalObject;
 import org.sosy_lab.cpachecker.cpa.smg.objects.sll.SMGSingleLinkedList;
-import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGInterpolant;
+import org.sosy_lab.cpachecker.cpa.smg.refiner.interpolation.SMGInterpolant;
 import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGHeapAbstractionThreshold;
 import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGMemoryPath;
 import org.sosy_lab.cpachecker.cpa.smg.refiner.SMGPrecision;
@@ -1637,7 +1637,7 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
     sourcesOfHve.registerDereference(expValue);
     sourcesOfHve.registerTargetWrite(bufferAddress);
 
-    long count = countValue.getAsLong();
+    int count = countValue.getAsInt();
 
     if (ch.isUnknown()) {
       // If the symbolic value is not known create a new one.
@@ -1842,7 +1842,7 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
     shrinkOverlappingZeroEdges(new_edge, overlappingZeroEdges);
 
     if (offset.getAsInt() < 0 || object.getSize() < (offset.getAsInt()
-        + new_edge.getSizeInBytes(heap.getMachineModel()))) {
+        + new_edge.getSizeInBits(heap.getMachineModel()))) {
 
       return new SMGStateEdgePair(this, new_edge);
     }
