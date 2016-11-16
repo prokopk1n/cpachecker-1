@@ -564,6 +564,8 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
                 " is invalid, because the target of the address could not be calculated.");
           }
           SMGState invalidFreeState = currentState.setInvalidFree();
+          invalidFreeState.setErrorDescription("Free on expression " + pointerExp.toASTString() +
+              " is invalid, because the target of the address could not be calculated.");
           resultStates.add(invalidFreeState);
           continue;
         }
@@ -872,6 +874,8 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
 
     if (smgPredicateManager.isErrorPathFeasible(smgState)) {
       smgState = smgState.setInvalidRead();
+      smgState.setErrorDescription("Predicate extension shows possibility of overflow on current "
+          + "code block");
     }
     smgState.resetErrorRelation();
 
@@ -901,6 +905,8 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
 
     if (smgPredicateManager.isErrorPathFeasible(newState)) {
       newState = newState.setInvalidRead();
+      newState.setErrorDescription("Predicate extension shows possibility of overflow on current "
+          + "code block");
     }
 
     newState.resetErrorRelation();
@@ -1110,6 +1116,8 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
 
     if (smgPredicateManager.isErrorPathFeasible(smgState)) {
       smgState = smgState.setInvalidRead();
+      smgState.setErrorDescription("Predicate extension shows possibility of overflow on current "
+          + "code block");
     }
     smgState.resetErrorRelation();
 
@@ -1290,6 +1298,8 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
           newStates = builtins.evaluateConfigurableAllocationFunction(cFCExpression, newState, pCfaEdge).asSMGStateList();
 
           for (SMGState state : newStates) {
+            state.setErrorDescription("Calling '" + functionName + "' and not using the result, "
+                + "resulting in memory leak.");
             state.setMemLeak();
           }
         }

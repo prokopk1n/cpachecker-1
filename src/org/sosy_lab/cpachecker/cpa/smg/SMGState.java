@@ -191,6 +191,8 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
   private final boolean invalidWrite;
   private final boolean invalidRead;
   private final boolean invalidFree;
+  private String errorDescription;
+  private String noteDescription;
 
   private void issueMemoryLeakMessage() {
     issueMemoryError("Memory leak found", false);
@@ -218,6 +220,21 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
     }
   }
 
+  public String getErrorDescription() {
+    return errorDescription;
+  }
+
+  public void setErrorDescription(String pErrorDescription) {
+    errorDescription = pErrorDescription;
+  }
+
+  public String getNoteDescription() {
+    return noteDescription;
+  }
+
+  public void setNoteDescription(String pNoteDescription) {
+    noteDescription = pNoteDescription;
+  }
   /**
    * Constructor.
    *
@@ -386,6 +403,7 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
     preciseIsLessOrEqualThroughJoin = pOriginalState.preciseIsLessOrEqualThroughJoin;
     blockEnded = pOriginalState.blockEnded;
     sourcesOfHve = pOriginalState.sourcesOfHve.copy();
+    errorDescription = pOriginalState.errorDescription;
   }
 
   private SMGState(SMGState pOriginalState, SMGHveSources pSources) {
@@ -1585,10 +1603,13 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
       if (sizeValue.isUnknown()) {
         resultState = resultState.setInvalidWrite();
         resultState = resultState.setInvalidRead();
+        resultState.setErrorDescription("Can't evaluate size for memcpy");
       } else if (targetStr1Address.isUnknown()) {
         resultState = resultState.setInvalidWrite();
+        resultState.setErrorDescription("Can't evaluate dst for memcpy");
       } else {
         resultState = resultState.setInvalidRead();
+        resultState.setErrorDescription("Can't evaluate src for memcpy");
       }
 
       if (targetStr1Address.isUnknown()) {
@@ -1625,12 +1646,16 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
 
     if (bufferAddress.isUnknown()) {
       unknownWrite();
-      return SMGAddressValueAndState.of(setInvalidWrite());
+      SMGState resultState = setInvalidWrite();
+      resultState.setErrorDescription("Can't evaluate dst for memset");
+      return SMGAddressValueAndState.of(resultState);
     }
 
     if (countValue.isUnknown()) {
       writeUnknownValueInUnknownField(bufferAddress.getObject());
-      return SMGAddressValueAndState.of(setInvalidWrite());
+      SMGState resultState = setInvalidWrite();
+      resultState.setErrorDescription("Can't evaluate count for memset");
+      return SMGAddressValueAndState.of(resultState);
     }
 
     sourcesOfHve.registerDereference(countValue);
@@ -1654,7 +1679,9 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
 
     if (doesNotFitIntoObject) {
       writeUnknownValueInUnknownField(bufferAddress.getObject());
-      return SMGAddressValueAndState.of(setInvalidWrite());
+      SMGState resultState = setInvalidWrite();
+      resultState.setErrorDescription("Buffer overwrite on memset");
+      return SMGAddressValueAndState.of(resultState);
     }
 
     SMGState resultState = this;
@@ -1806,6 +1833,7 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
     if (!heap.isObjectValid(object) && !heap.isObjectExternallyAllocated(object)) {
       //Attempt to write to invalid object
       SMGState newState = setInvalidWrite();
+      newState.setErrorDescription("Attempt to write to invalid/deallocate object");
       return new SMGStateEdgePair(newState);
     }
 
@@ -2404,8 +2432,10 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
 
     if (!heap.isHeapObject(smgObject) && !heap.isObjectExternallyAllocated(smgObject)) {
       // You may not free any objects not on the heap.
-
-      return setInvalidFree();
+      SMGState newState = setInvalidFree();
+      newState.addInvalidObject(smgObject);
+      newState.setErrorDescription("Invalid free of unallocated object is found");
+      return newState;
     }
 
     if (!(offset == 0) && !heap.isObjectExternallyAllocated(smgObject)) {
@@ -2413,14 +2443,20 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
       // didn't get through a malloc invocation.
       // TODO: externally allocated memory could be freed partially
 
-      return setInvalidFree();
+      SMGState newState = setInvalidFree();
+      newState.addInvalidObject(smgObject);
+      newState.setErrorDescription("Invalid free at " + offset + " offset from allocated is found");
+      return newState;
     }
 
     if (!heap.isObjectValid(smgObject)) {
       // you may not invoke free multiple times on
       // the same object
 
-      return setInvalidFree();
+      SMGState newState = setInvalidFree();
+      newState.addInvalidObject(smgObject);
+      newState.setErrorDescription("Double free is found");
+      return newState;
     }
 
     heap.setValidity(smgObject, false);
@@ -2440,6 +2476,13 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
     return this;
   }
 
+  public void addInvalidObject(SMGObject pSmgObject) {
+    heap.reportInvalidObject(pSmgObject);
+  }
+
+  public List<SMGObject> getInvalidObjects() {
+    return heap.getInvalidObjects();
+  }
   /**
    * Drop the stack frame representing the stack of
    * the function with the given name
@@ -2457,6 +2500,9 @@ public class SMGState implements AbstractQueryableState, LatticeAbstractState<SM
    */
   public void pruneUnreachable() throws SMGInconsistentException {
     heap.pruneUnreachable();
+    if (heap.hasMemoryLeaks()) {
+      setErrorDescription("Memory leak is detected");
+    }
     //TODO: Explicit values pruning
     performConsistencyCheck(SMGRuntimeCheck.HALF);
   }
