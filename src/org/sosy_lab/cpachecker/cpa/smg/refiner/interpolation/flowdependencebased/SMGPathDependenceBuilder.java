@@ -693,14 +693,14 @@ public class SMGPathDependenceBuilder {
 
       ImmutableSetMultimap.Builder<SMGObject, SMGKnownAddress> sizeSourceBuilder =
           ImmutableSetMultimap.builder();
-      ImmutableMap.Builder<SMGObject, Integer> allocationPositionBuilder =
-          ImmutableMap.builder();
+      Map<SMGObject, Integer> allocationPositionBuilder = new HashMap<>();
 
       Set<SMGObject> newKeys = new HashSet<>();
 
       for (Entry<SMGObject, SMGKnownAddress> entry : pSources.getObjectMap()) {
         sizeSourceBuilder.put(entry.getKey(), entry.getValue());
-        allocationPositionBuilder.put(entry.getKey(), pPathPosition);
+        Integer prevValue = allocationPositionBuilder.put(entry.getKey(), pPathPosition);
+        assert (prevValue == null || prevValue == pPathPosition);
         newKeys.add(entry.getKey());
       }
 
@@ -708,13 +708,14 @@ public class SMGPathDependenceBuilder {
           Sets.difference(objectAllocationPosition.keySet(), newKeys);
 
       for (SMGObject oldKey : oldKeyObjectAllocationPosition) {
-        allocationPositionBuilder.put(oldKey, objectAllocationPosition.get(oldKey));
+        Integer prevValue = allocationPositionBuilder.put(oldKey, objectAllocationPosition.get(oldKey));
+        assert (prevValue == null || prevValue == objectAllocationPosition.get(oldKey));
       }
 
       sizeSourceBuilder.putAll(objectSizeSources);
 
       SetMultimap<SMGObject, SMGKnownAddress> newObjectSizeSources = sizeSourceBuilder.build();
-      Map<SMGObject, Integer> newObjectAllocationPosition = allocationPositionBuilder.build();
+      Map<SMGObject, Integer> newObjectAllocationPosition = ImmutableMap.copyOf(allocationPositionBuilder);
       return new PathScope(scope, newObjectSizeSources, newObjectAllocationPosition);
     }
 

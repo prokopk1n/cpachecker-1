@@ -313,6 +313,11 @@ public class SMGPathDependence {
     SMGAddress defaultAddress =
         pPositionDependency.getDefaultHeapObjectToPointerConnection().get(pObjectToReach);
 
+    if (defaultAddress == null) {
+      logger.log(Level.INFO, "Missing scope information for object:" + pObjectToReach.toString());
+      return;
+    }
+
     SMGFlowDependenceFieldVertice source = pPositionDependency.getScope().get(defaultAddress);
 
     if (source == null) {
