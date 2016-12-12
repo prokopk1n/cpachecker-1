@@ -68,6 +68,7 @@ public class AutomatonExpressionArguments {
   // these will be set in a MATCH statement, and are erased when the transitions actions are executed.
   // MATCH DEREF statement may set several series of variables.
   private ArrayList<Map<Integer, AAstNode>> transitionVariablesSeries = new ArrayList<>();
+  private int transitionVariablesSeriesNum = 0;
   private List<AbstractState> abstractStates;
   private AutomatonState state;
   private CFAEdge cfaEdge;
@@ -156,19 +157,20 @@ public class AutomatonExpressionArguments {
   void clearTransitionVariables() {
     this.transitionVariablesSeries.clear();
     this.transitionVariablesSeries.add(new HashMap<Integer, AAstNode>());
+    this.transitionVariablesSeriesNum = 0;
   }
 
   private boolean containsTransitionVariable(final int pKey) {
-    return this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1).containsKey(pKey);
+    return this.transitionVariablesSeries.get(this.transitionVariablesSeriesNum).containsKey(pKey);
   }
 
   AAstNode getTransitionVariable(final int pKey) {
     // this is the variable adressed with $<key> in the automaton definition
-    return this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1).get(pKey);
+    return this.transitionVariablesSeries.get(this.transitionVariablesSeriesNum).get(pKey);
   }
 
   void putTransitionVariable(int pKey, AAstNode pValue) {
-    this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1).put(pKey, pValue);
+    this.transitionVariablesSeries.get(this.transitionVariablesSeriesNum).put(pKey, pValue);
   }
 
   /**
@@ -227,11 +229,11 @@ public class AutomatonExpressionArguments {
   }
 
   Map<Integer, AAstNode> getTransitionVariables() {
-    return this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1);
+    return this.transitionVariablesSeries.get(this.transitionVariablesSeriesNum);
   }
 
   void putTransitionVariables(Map<Integer, AAstNode> pTransitionVariables) {
-    this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1).putAll(pTransitionVariables);
+    this.transitionVariablesSeries.get(this.transitionVariablesSeriesNum).putAll(pTransitionVariables);
   }
 
   ArrayList<Map<Integer, AAstNode>> getTransitionVariablesSeries() {
