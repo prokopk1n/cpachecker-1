@@ -293,7 +293,7 @@ class AutomatonTransferRelation extends SingleEdgeTransferRelation {
     // TransitionVariables have to be cached (produced during the match operation).
 
     // Following lists holds a Transition and the corresponding TransitionVariables generated during its match
-    List<Pair<AutomatonTransition, Map<Integer, AAstNode>>> transitionsToBeTaken = new ArrayList<>(2);
+    List<Pair<AutomatonTransition, List<Map<Integer, AAstNode>>>> transitionsToBeTaken = new ArrayList<>(2);
 
     for (final AutomatonTransition t : pState.getLeavingTransitions()) {
 
@@ -345,8 +345,8 @@ class AutomatonTransferRelation extends SingleEdgeTransferRelation {
           }
 
           // delay execution as described above
-          Map<Integer, AAstNode> transitionVariables = ImmutableMap.copyOf(exprArgs.getTransitionVariables());
-          transitionsToBeTaken.add(Pair.of(t, transitionVariables));
+          List<Map<Integer, AAstNode>> transitionVariablesSeries = ImmutableList.copyOf(exprArgs.getTransitionVariablesSeries());
+          transitionsToBeTaken.add(Pair.of(t, transitionVariablesSeries));
 
         } else {
           // matching transitions, but unfulfilled assertions: goto error state
@@ -382,18 +382,18 @@ class AutomatonTransferRelation extends SingleEdgeTransferRelation {
 
     if (atLeastOneMatch) {
       // execute Transitions
-      for (Pair<AutomatonTransition, Map<Integer, AAstNode>> pair : transitionsToBeTaken) {
+      for (Pair<AutomatonTransition, List<Map<Integer, AAstNode>>> pair : transitionsToBeTaken) {
 
         // this transition will be taken. copy the variables
         AutomatonTransition t = pair.getFirst();
-        Map<Integer, AAstNode> transitionVariables = pair.getSecond();
+        List<Map<Integer, AAstNode>> transitionVariablesSeries = pair.getSecond();
 
         boolean checkFeasibility = false;
 
         actionTime.start();
         Map<String, AutomatonVariable> newVars = deepCloneVars(pState.getVars());
         exprArgs.setAutomatonVariables(newVars);
-        exprArgs.putTransitionVariables(transitionVariables);
+        exprArgs.putTransitionVariablesSeries(transitionVariablesSeries);
 
         for (AutomatonAction action : t.getActions()) {
           ResultValue<?> res = action.eval(exprArgs);

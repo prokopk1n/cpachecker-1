@@ -234,6 +234,16 @@ public class AutomatonExpressionArguments {
     this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1).putAll(pTransitionVariables);
   }
 
+  ArrayList<Map<Integer, AAstNode>> getTransitionVariablesSeries() {
+    return this.transitionVariablesSeries;
+  }
+
+  void putTransitionVariablesSeries(List<Map<Integer, AAstNode>> pTransitionVariablesSeries) {
+    for (int i = 0; i < pTransitionVariablesSeries.size(); i++) {
+      this.transitionVariablesSeries.get(i).putAll(pTransitionVariablesSeries.get(i));
+    }
+  }
+
   /**
    * For a {@code CBinaryExpression} of type {@code CProblemType} try to find an appropriate
    * definition edge in the CFA and return a fixed expression.
