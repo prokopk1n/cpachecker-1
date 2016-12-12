@@ -184,7 +184,7 @@ parser code {:
 
 
 
-terminal EXCLAMATION, AND, OR, ARROW, SEMICOLON, COMMA, COLON, OPEN_BRACKETS, CLOSE_BRACKETS, AUTOMATON,OBSERVER, CONTROL, END, LOCAL, INITIAL, HEADER, STATE, ERROR, STOP, INACTIVE, EXIT, ENTRY, BREAK, ASSERT, ASSUME, MATCH, LABEL, CHECK, EVAL, MODIFY, DO, ENCODE, PRINT, GOTO, IDENTIFIER, INTEGER_LITERAL, NEQ, EQ, EQEQ, PLUS, MINUS, TRUE, FALSE, STRING_LITERAL, CURLYEXPR, SQUAREEXPR, USEALL, USEFIRST, TARGET, IS_TARGET_STATE, CALL, RETURN, SPLIT, NEGATION;
+terminal EXCLAMATION, AND, OR, ARROW, SEMICOLON, COMMA, COLON, OPEN_BRACKETS, CLOSE_BRACKETS, AUTOMATON,OBSERVER, CONTROL, END, LOCAL, INITIAL, HEADER, STATE, ERROR, STOP, INACTIVE, EXIT, ENTRY, BREAK, ASSERT, ASSUME, MATCH, LABEL, CHECK, EVAL, MODIFY, DO, ENCODE, PRINT, GOTO, IDENTIFIER, INTEGER_LITERAL, NEQ, EQ, EQEQ, PLUS, MINUS, TRUE, FALSE, STRING_LITERAL, CURLYEXPR, SQUAREEXPR, USEALL, USEFIRST, TARGET, IS_TARGET_STATE, CALL, RETURN, DEREF, SPLIT, NEGATION;
 non terminal List<Automaton> initial ;  
 non terminal Automaton Specification ;
 non terminal Automaton Automaton ;
@@ -371,6 +371,8 @@ Bool      ::= TRUE  {: RESULT = AutomatonBoolExpr.TRUE; :}
               {: RESULT = new AutomatonBoolExpr.MatchCFAEdgeASTComparison(parser.generateASTPattern(expr.toString()), AutomatonBoolExpr.MatchCFAEdgeASTComparison.CallableMatchMode.CALL); :}
             | MATCH RETURN CURLYEXPR:expr
               {: RESULT = new AutomatonBoolExpr.MatchCFAEdgeASTComparison(parser.generateASTPattern(expr.toString()), AutomatonBoolExpr.MatchCFAEdgeASTComparison.CallableMatchMode.RETURN); :}
+            | MATCH DEREF CURLYEXPR:expr
+              {: RESULT = new AutomatonBoolExpr.MatchCFAEdgeASTMatchDeref(parser.generateASTPattern(expr.toString())); :}
             | MATCH SQUAREEXPR:expr
               {: RESULT = new AutomatonBoolExpr.MatchCFAEdgeRegEx(expr.toString()); :}
             | MATCH LABEL STRING_LITERAL:lit
