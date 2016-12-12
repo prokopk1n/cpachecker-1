@@ -72,6 +72,8 @@ public class AutomatonASTDerefMatcher {
 
   boolean matches(CAstNode pSource, AutomatonExpressionArguments pArgs) throws UnrecognizedCFAEdgeException {
     if (pSource instanceof CStatement) {
+      // Remove default first set of transition variables, each match will add a new one.
+      pArgs.scratchTransitionVariablesSeries();
       return ((CStatement)pSource).accept(new ASTDerefVisitor(patternAST, pArgs));
     } else {
       throw new UnrecognizedCFAEdgeException(pArgs.getCfaEdge());
@@ -90,8 +92,14 @@ public class AutomatonASTDerefMatcher {
     }
 
     private boolean match(CExpression exp) {
-      // TODO: do something with args to store several sets of transition variables correctly.
-      return patternAST.getMatcher().matches(exp, args);
+      args.extendTransitionVariablesSeries();
+      boolean res = patternAST.getMatcher().matches(exp, args);
+
+      if (!res) {
+        args.scratchTransitionVariablesSeries();
+      }
+
+      return res;
     }
 
     @Override

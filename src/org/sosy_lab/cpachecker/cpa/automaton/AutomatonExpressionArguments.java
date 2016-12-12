@@ -246,6 +246,16 @@ public class AutomatonExpressionArguments {
     }
   }
 
+  void extendTransitionVariablesSeries() {
+    this.transitionVariablesSeriesNum = this.transitionVariablesSeries.size();
+    this.transitionVariablesSeries.add(new HashMap<Integer, AAstNode>());
+  }
+
+  void scratchTransitionVariablesSeries() {
+    this.transitionVariablesSeries.remove(this.transitionVariablesSeriesNum);
+    this.transitionVariablesSeriesNum--;
+  }
+
   /**
    * For a {@code CBinaryExpression} of type {@code CProblemType} try to find an appropriate
    * definition edge in the CFA and return a fixed expression.
