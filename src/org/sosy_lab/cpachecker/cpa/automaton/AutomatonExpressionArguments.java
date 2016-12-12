@@ -408,8 +408,11 @@ public class AutomatonExpressionArguments {
       final Boolean truth = entry.getSecond();
 
       if (stmt instanceof CStatement) {
-        CStatement inst = (CStatement)substituteJokerVariables((CStatement) stmt);
-        builder.add(Pair.<AStatement, Boolean>of(inst, truth));
+        for (int i = 0; i < transitionVariablesSeries.size(); i++) {
+          transitionVariablesSeriesNum = i;
+          CStatement inst = (CStatement)substituteJokerVariables((CStatement) stmt);
+          builder.add(Pair.<AStatement, Boolean>of(inst, truth));
+        }
       } else {
         this.getLogger().log(Level.WARNING, "Could not instantiate transition assumption! Support for non-C-languages is missing at the moment!");
         builder.add(Pair.of(stmt, truth));
@@ -421,10 +424,15 @@ public class AutomatonExpressionArguments {
 
   public List<AAstNode> instantiateCode(ImmutableList<AAstNode> pShadowCode) {
     Builder<AAstNode> result = ImmutableList.<AAstNode>builder();
-    for (AAstNode n: pShadowCode) {
-      AAstNode nPrime = substituteJokerVariables((CAstNode)n);
-      result.add(nPrime);
+
+    for (int i = 0; i < transitionVariablesSeries.size(); i++) {
+      for (AAstNode n: pShadowCode) {
+        transitionVariablesSeriesNum = i;
+        AAstNode nPrime = substituteJokerVariables((CAstNode)n);
+        result.add(nPrime);
+      }
     }
+
     return result.build();
   }
 
