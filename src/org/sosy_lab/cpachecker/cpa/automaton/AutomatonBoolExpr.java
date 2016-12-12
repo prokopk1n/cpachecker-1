@@ -316,6 +316,54 @@ public interface AutomatonBoolExpr extends AutomatonExpression, TrinaryEqualable
   }
 
 
+  /**
+   * This matches AST of the pattern against AST of all dereferenced expressions in the C-Statement on the CFA Edge.
+   * It creates several sets of transition variables.
+   */
+  final class MatchCFAEdgeASTMatchDeref extends AbstractAutomatonBoolExpr {
+
+    private final ASTMatcherProvider patternAST;
+    private final AutomatonASTDerefMatcher derefMatcher;
+
+    public MatchCFAEdgeASTMatchDeref(ASTMatcherProvider pAstMatcherProvider) {
+      this.patternAST = pAstMatcherProvider;
+      this.derefMatcher = new AutomatonASTDerefMatcher(pAstMatcherProvider);
+    }
+
+    @Override
+    public ResultValue<Boolean> eval(AutomatonExpressionArguments pArgs) throws UnrecognizedCFAEdgeException {
+      final Optional<?> ast = pArgs.getCfaEdge().getRawAST();
+
+      if (ast.isPresent()) {
+        if (!(ast.get() instanceof CAstNode)) {
+          throw new UnrecognizedCFAEdgeException(pArgs.getCfaEdge());
+        }
+        // some edges do not have an AST node attached to them, e.g. BlankEdges
+        if (this.derefMatcher.matches((CAstNode)ast.get(), pArgs)) {
+          return CONST_TRUE;
+        } else {
+          return CONST_FALSE;
+        }
+      }
+      return CONST_FALSE;
+    }
+
+    @Override
+    public Equality equalityTo(Object pOther) {
+      return pOther instanceof MatchCFAEdgeASTMatchDeref
+          ? (this.patternAST.getPatternString().equals(((MatchCFAEdgeASTMatchDeref)pOther).patternAST.getPatternString())
+                ? Equality.EQUAL
+                : Equality.UNKNOWN)
+          : Equality.UNKNOWN; // Also other matchers might match the represented edge
+    }
+
+    @Override
+    public String toString() {
+      return "MATCH DEREF {" + patternAST + "}";
+    }
+  }
+
+
   final class MatchCFAEdgeRegEx extends AbstractAutomatonBoolExpr {
 
     private final Pattern pattern;
