@@ -66,7 +66,8 @@ public class AutomatonExpressionArguments {
   private Map<String, AutomatonVariable> automatonVariables;
   // Variables that are only valid for one transition ($1,$2,...)
   // these will be set in a MATCH statement, and are erased when the transitions actions are executed.
-  private Map<Integer, AAstNode> transitionVariables = new HashMap<>();
+  // MATCH DEREF statement may set several series of variables.
+  private ArrayList<Map<Integer, AAstNode>> transitionVariablesSeries = new ArrayList<>();
   private List<AbstractState> abstractStates;
   private AutomatonState state;
   private CFAEdge cfaEdge;
@@ -107,6 +108,9 @@ public class AutomatonExpressionArguments {
     } else {
       abstractStates = pAbstractStates;
     }
+
+    transitionVariablesSeries.add(new HashMap<Integer, AAstNode>());
+
     cfaEdge = pCfaEdge;
     logger = pLogger;
     state = pState;
@@ -150,16 +154,21 @@ public class AutomatonExpressionArguments {
   }
 
   void clearTransitionVariables() {
-    this.transitionVariables.clear();
+    this.transitionVariablesSeries.clear();
+    this.transitionVariablesSeries.add(new HashMap<Integer, AAstNode>());
+  }
+
+  private boolean containsTransitionVariable(final int pKey) {
+    return this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1).containsKey(pKey);
   }
 
   AAstNode getTransitionVariable(final int pKey) {
     // this is the variable adressed with $<key> in the automaton definition
-    return this.transitionVariables.get(pKey);
+    return this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1).get(pKey);
   }
 
   void putTransitionVariable(int pKey, AAstNode pValue) {
-    this.transitionVariables.put(pKey, pValue);
+    this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1).put(pKey, pValue);
   }
 
   /**
@@ -218,11 +227,11 @@ public class AutomatonExpressionArguments {
   }
 
   Map<Integer, AAstNode> getTransitionVariables() {
-    return this.transitionVariables;
+    return this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1);
   }
 
   void putTransitionVariables(Map<Integer, AAstNode> pTransitionVariables) {
-    this.transitionVariables.putAll(pTransitionVariables);
+    this.transitionVariablesSeries.get(this.transitionVariablesSeries.size() - 1).putAll(pTransitionVariables);
   }
 
   /**
@@ -301,9 +310,8 @@ public class AutomatonExpressionArguments {
   private CSimpleDeclaration getDeclarationForTransitionVariable(final String pExpressionName) {
     final int index =
         Integer.parseInt(pExpressionName.replace(AutomatonASTComparator.NUMBERED_JOKER_EXPR, ""));
-    if (transitionVariables.containsKey(index)
-        && transitionVariables.get(index) instanceof CIdExpression) {
-      return ((CIdExpression) transitionVariables.get(index)).getDeclaration();
+    if (containsTransitionVariable(index) && getTransitionVariable(index) instanceof CIdExpression) {
+      return ((CIdExpression) getTransitionVariable(index)).getDeclaration();
     }
 
     return null;
