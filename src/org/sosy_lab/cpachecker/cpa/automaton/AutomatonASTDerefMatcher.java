@@ -76,7 +76,7 @@ public class AutomatonASTDerefMatcher {
       pArgs.scratchTransitionVariablesSeries();
       return ((CStatement)pSource).accept(new ASTDerefVisitor(patternAST, pArgs));
     } else {
-      throw new UnrecognizedCFAEdgeException(pArgs.getCfaEdge());
+      return false;
     }
   }
 
