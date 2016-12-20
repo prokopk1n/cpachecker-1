@@ -109,12 +109,12 @@ public class AutomatonASTDerefMatcher {
 
     @Override
     public Boolean visit(CExpressionAssignmentStatement stmt) throws UnrecognizedCFAEdgeException {
-      return ((CAssignment)stmt).accept(this);
+      return visit((CAssignment)stmt);
     }
 
     @Override
     public Boolean visit(CFunctionCallAssignmentStatement stmt) throws UnrecognizedCFAEdgeException {
-      return ((CAssignment)stmt).accept(this);
+      return visit((CAssignment)stmt);
     }
 
     @Override
