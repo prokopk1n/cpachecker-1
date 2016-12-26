@@ -1864,7 +1864,7 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
       }
 
       newStates = result;
-      listCounter.add(SMGKnownExpValue.ONE);
+      listCounter = listCounter.add(SMGKnownExpValue.ONE);
     }
 
     SMGExplicitValue fieldStartOffset = pAddress.getOffset();
@@ -2815,7 +2815,7 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
     public SMGExplicitValue deriveExplicitValueFromSymbolicValue() {
 
       if (!isUnknown()) {
-        if (equals(SMGKnownSymValue.ZERO)) {
+        if (this == SMGKnownSymValue.ZERO) {
           return SMGKnownExpValue.ZERO;
         }
 
@@ -2823,7 +2823,7 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
           SMGAddressValue address = (SMGAddressValue) this;
 
           if (address.getObject().equals(SMGObject.getNullObject())) {
-            return address.getOffset();
+            return address.getOffset().divide(SMGKnownExpValue.valueOf(MachineModel.getSizeofCharInBits()));
           }
         }
       }
