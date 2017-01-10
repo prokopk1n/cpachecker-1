@@ -60,6 +60,7 @@ public class SMGHveSources {
   private final Multimap<SMGEdgeHasValue, SMGKnownAddress> hveMap;
   private final Multimap<SMGKnownSymValue, SMGKnownAddress> valueMap;
   private final Multimap<SMGObject, SMGKnownAddress> objectMap;
+  private final Set<SMGObject> objectMapDecl;
   private final Set<SMGRegion> varTypeSizeDcl;
   private boolean pathEnd = false;
   private SMGValue pathEndValue = null;
@@ -74,6 +75,7 @@ public class SMGHveSources {
   public SMGHveSources() {
     hveMap = HashMultimap.create();
     objectMap = HashMultimap.create();
+    objectMapDecl = new HashSet<>();
     newFieldAllocation = new HashSet<>();
     varTypeSizeDcl = new HashSet<>();
     sourcesOfDereference = new HashSet<>();
@@ -89,6 +91,8 @@ public class SMGHveSources {
     valueMap.putAll(pSource.valueMap);
     objectMap = HashMultimap.create();
     objectMap.putAll(pSource.objectMap);
+    objectMapDecl = new HashSet<>();
+    objectMapDecl.addAll(pSource.objectMapDecl);
     newFieldAllocation = new HashSet<>();
     newFieldAllocation.addAll(pSource.newFieldAllocation);
     varTypeSizeDcl = new HashSet<>();
@@ -104,13 +108,15 @@ public class SMGHveSources {
   public SMGHveSources(Set<SMGKnownAddress> pNewFieldAllocation,
       Multimap<SMGEdgeHasValue, SMGKnownAddress> pHveMap,
       Multimap<SMGKnownSymValue, SMGKnownAddress> pValueMap,
-      Multimap<SMGObject, SMGKnownAddress> pObjectMap, Set<SMGRegion> pVarTypeSizeDcl,
-      boolean pPathEnd, SMGValue pPathEndValue, Set<SMGKnownAddress> pSourcesOfDereference,
-      Set<SMGObject> pTargetWriteObject, Set<SMGKnownAddress> pSourcesOfUnknownTargetWrite) {
+      Multimap<SMGObject, SMGKnownAddress> pObjectMap, Set<SMGObject> pObjectMapDecl,
+      Set<SMGRegion> pVarTypeSizeDcl, boolean pPathEnd, SMGValue pPathEndValue,
+      Set<SMGKnownAddress> pSourcesOfDereference, Set<SMGObject> pTargetWriteObject,
+      Set<SMGKnownAddress> pSourcesOfUnknownTargetWrite) {
     newFieldAllocation = pNewFieldAllocation;
     hveMap = pHveMap;
     valueMap = pValueMap;
     objectMap = pObjectMap;
+    objectMapDecl = pObjectMapDecl;
     varTypeSizeDcl = pVarTypeSizeDcl;
     pathEnd = pPathEnd;
     pathEndValue = pPathEndValue;
@@ -257,7 +263,7 @@ public class SMGHveSources {
     valueMap.putAll(pKey, pValue.getSourceAdresses());
   }
 
-  public void registerNewObjectAllocation(SMGKnownExpValue pSize, SMGObject pResult,
+  public void registerNewObjectAllocation(SMGExplicitValue pSize, SMGObject pResult,
       boolean isStackAndVariableTypeSize) {
 
     if (pSize.containsSourceAddreses()) {
@@ -266,6 +272,7 @@ public class SMGHveSources {
         varTypeSizeDcl.add((SMGRegion) pResult);
       }
 
+      objectMapDecl.add(pResult);
       objectMap.putAll(pResult, pSize.getSourceAdresses());
     }
   }
@@ -278,6 +285,7 @@ public class SMGHveSources {
     newFieldAllocation.clear();
     hveMap.clear();
     objectMap.clear();
+    objectMapDecl.clear();
   }
 
   public static class SMGAddressAndSource extends SMGKnownAddress {
@@ -291,6 +299,7 @@ public class SMGHveSources {
       if (pOffset.containsSourceAddreses()) {
         pSource = Sets.union(pSource, pOffset.getSourceAdresses());
       }
+//      pSource.add(this);
 
       source = FluentIterable.from(pSource).transform(dropSource).toSet();
     }

@@ -50,7 +50,7 @@ public class SMGHveUnkownSources extends SMGHveSources {
   private static final SMGHveUnkownSources INSTANCE = new SMGHveUnkownSources();
 
   public SMGHveUnkownSources() {
-    super(null, null, null, null, null, false, null, null, null, null);
+    super(null, null, null, null, null, null, false, null, null, null, null);
   }
 
   @Override
@@ -121,7 +121,7 @@ public class SMGHveUnkownSources extends SMGHveSources {
   }
 
   @Override
-  public void registerNewObjectAllocation(SMGKnownExpValue pSize, SMGObject pResult,
+  public void registerNewObjectAllocation(SMGExplicitValue pSize, SMGObject pResult,
       boolean pIsStackAndVariableTypeSize) {
     return;
   }

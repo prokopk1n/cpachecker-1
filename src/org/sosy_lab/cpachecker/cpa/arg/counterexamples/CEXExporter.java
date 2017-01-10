@@ -268,7 +268,10 @@ public class CEXExporter {
     SMGState prevSMGState = state;
 
     while (rIterator.hasNext()) {
-      rIterator.advance();
+      boolean next = rIterator.advanceIfPossible();
+      if (!next) {
+        break;
+      }
       ARGState argState = rIterator.getAbstractState();
       SMGState smgState = AbstractStates.extractStateByType(argState, SMGState.class);
       Iterator<SMGObject> smgObjectIterator = invalidObjects.iterator();

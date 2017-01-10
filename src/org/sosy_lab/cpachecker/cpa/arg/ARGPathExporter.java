@@ -114,6 +114,7 @@ import org.sosy_lab.cpachecker.util.automaton.AutomatonGraphmlCommon.GraphType;
 import org.sosy_lab.cpachecker.util.automaton.AutomatonGraphmlCommon.KeyDef;
 import org.sosy_lab.cpachecker.util.automaton.AutomatonGraphmlCommon.NodeFlag;
 import org.sosy_lab.cpachecker.util.automaton.AutomatonGraphmlCommon.NodeType;
+import org.sosy_lab.cpachecker.util.automaton.AutomatonGraphmlInfoProvider;
 import org.sosy_lab.cpachecker.util.expressions.ExpressionTree;
 import org.sosy_lab.cpachecker.util.expressions.ExpressionTreeFactory;
 import org.sosy_lab.cpachecker.util.expressions.ExpressionTrees;
@@ -654,15 +655,9 @@ public class ARGPathExporter {
            */
         for (ARGState child : state.getChildren()) {
           if (GraphBuilder.ARG_PATH.getId(child).equals(pTo)) {
-            SMGState smgState = AbstractStates.extractStateByType(child, SMGState.class);
-            String errorDesc = smgState.getErrorDescription();
-            if (errorDesc != null) {
-              result = result.putAndCopy(KeyDef.WARNING, errorDesc);
-            }
-            String noteDesc = smgState.getNoteDescription();
-            if (noteDesc != null) {
-              result = result.putAndCopy(KeyDef.NOTE, noteDesc);
-            }
+            AutomatonGraphmlInfoProvider stateWithGraphmlInfo =
+                AbstractStates.extractStateByType(child, AutomatonGraphmlInfoProvider.class);
+            result = result.putAllAndCopy(stateWithGraphmlInfo.getTransitionCondition());
           }
         }
       }

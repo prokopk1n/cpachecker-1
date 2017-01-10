@@ -24,6 +24,7 @@
 package org.sosy_lab.cpachecker.cpa.smg.refiner;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
@@ -60,6 +61,8 @@ import org.sosy_lab.cpachecker.cpa.smg.refiner.interpolation.SMGInterpolationTre
 import org.sosy_lab.cpachecker.cpa.smg.refiner.interpolation.SMGPathInterpolator;
 import org.sosy_lab.cpachecker.cpa.smg.refiner.interpolation.SMGStateInterpolant.SMGPrecisionIncrement;
 import org.sosy_lab.cpachecker.cpa.smg.refiner.interpolation.flowdependencebased.SMGFlowDependenceBasedInterpolator;
+import org.sosy_lab.cpachecker.cpa.smg.refiner.interpolation.flowdependencebased.SMGPathDependence;
+import org.sosy_lab.cpachecker.cpa.smg.refiner.interpolation.flowdependencebased.SMGPathDependenceBuilder;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
 import org.sosy_lab.cpachecker.exceptions.RefinementFailedException;
 import org.sosy_lab.cpachecker.exceptions.RefinementFailedException.Reason;
@@ -95,6 +98,7 @@ public class SMGRefiner implements Refiner {
   private final PathExtractor pathExtractor;
   private final SMGInterpolantManager interpolantManager;
   private final SMGPathInterpolator interpolator;
+  private final SMGFlowDependenceBasedInterpolator useGraphBuilder;
 
   private final StatCounter refinementCounter = new StatCounter("Number of refinements");
   private final StatInt numberOfTargets = new StatInt(StatKind.SUM, "Number of targets found");
@@ -172,7 +176,7 @@ public class SMGRefiner implements Refiner {
             interpolantManager,
             smgCpa.getShutdownNotifier(), logger, smgCpa.getBlockOperator(), smgCpa.getCFA());
 
-    SMGFlowDependenceBasedInterpolator useGraphBuilder = new SMGFlowDependenceBasedInterpolator(pLogger,
+    useGraphBuilder = new SMGFlowDependenceBasedInterpolator(pLogger,
         checkerForInterpolation, pConfig, pCfa, predicateManager, blockOperator, exportInterpolantSMGs, smgCpa.getExportSMGLevel());
 
     interpolator =
@@ -219,7 +223,10 @@ public class SMGRefiner implements Refiner {
     Collection<ARGState> targets = pathExtractor.getTargetStates(pReached);
     List<ARGPath> targetPaths = pathExtractor.getTargetPaths(targets);
 
-    return performRefinementForPaths(pReached, targets, targetPaths);
+    CounterexampleInfo counterexample = performRefinementForPaths(pReached, targets, targetPaths);
+    //TODO: modify targetPaths if path is reachable
+
+    return counterexample;
   }
 
   private CounterexampleInfo performRefinementForPaths(ARGReachedSet pReached,
@@ -273,6 +280,33 @@ public class SMGRefiner implements Refiner {
     }
   }
 
+  private CounterexampleInfo createCounterexample(ARGPath pTargetPath, CFAPathWithAssumptions pAssignments, ARGReachedSet pReached) {
+    CounterexampleInfo resultCounterexample;
+    ARGPath resultPath = addMemoryDependencyInformation(pTargetPath, pReached);
+    if (!pAssignments.isEmpty()) {
+      resultCounterexample = CounterexampleInfo.feasiblePrecise(resultPath, pAssignments);
+    } else {
+      resultCounterexample = CounterexampleInfo.feasibleImprecise(resultPath);
+    }
+    return resultCounterexample;
+  }
+
+  private ARGPath addMemoryDependencyInformation(ARGPath pTargetPath, ARGReachedSet pReached) {
+
+    Map<ARGState, SMGInterpolant> prevInterpolants = new HashMap<>();
+    Set<SMGPathDependence> memoryDependence;
+    try {
+      memoryDependence = useGraphBuilder.buildMemoryDependence(pTargetPath,
+          pTargetPath.getFirstState(), prevInterpolants, pReached);
+    } catch (CPAException pE) {
+      pE.printStackTrace();
+    } catch (InterruptedException pE) {
+      pE.printStackTrace();
+    }
+    SMGInterpolationTree interpolationTree = createInterpolationTree(ImmutableList.of(pTargetPath));
+    return pTargetPath;
+  }
+
   private void refineUsingNewGlobalPrecision(ARGReachedSet pReached,
       SMGPrecision pNewGlobalPrecision, ARGState refinmentRoot) throws InterruptedException {
     shutdownNotifier.shutdownIfNecessary();
@@ -296,9 +330,8 @@ public class SMGRefiner implements Refiner {
       if (isErrorPathFeasible(currentPath)) {
         if(feasiblePath == null) {
           feasiblePath = currentPath;
+          pathExtractor.addFeasibleTarget(currentPath.getLastState());
         }
-
-        pathExtractor.addFeasibleTarget(currentPath.getLastState());
       }
     }
 
@@ -315,11 +348,9 @@ public class SMGRefiner implements Refiner {
       // merges which are done in the used CPAs, but if we can compute a path with assignments,
       // it is probably precise.
       CFAPathWithAssumptions assignments = createModel(feasiblePath);
-      if (!assignments.isEmpty()) {
-        return CounterexampleInfo.feasiblePrecise(feasiblePath, assignments);
-      } else {
-        return CounterexampleInfo.feasibleImprecise(feasiblePath);
-      }
+      CounterexampleInfo counterexample = createCounterexample(feasiblePath, assignments, pReached);
+      argCpa.exportCounterexampleOnTheFly(feasiblePath.getLastState(), counterexample);
+      return counterexample;
     }
 
     return CounterexampleInfo.spurious();

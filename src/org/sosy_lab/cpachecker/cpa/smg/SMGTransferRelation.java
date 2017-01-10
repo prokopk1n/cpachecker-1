@@ -282,9 +282,31 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
             List<SMGExplicitValueAndState> expValueAndStates = evaluateExplicitValue(currentState, cfaEdge, chExpr);
 
             for (SMGExplicitValueAndState expValueAndState : expValueAndStates) {
-
+              currentState = expValueAndState.getSmgState();
+              if (countValueAndState.getObject().isUnknown() && !bufferAddressAndState.getObject().isUnknown()) {
+                SMGKnownExpValue countValueSize = expressionEvaluator.getSizeof(cfaEdge, countExpr
+                    .getExpressionType(), currentState);
+                SMGValueAndStateList countSymbolicValueAndStates =
+                    evaluateExpressionValue(currentState, cfaEdge, countExpr);
+                for (SMGValueAndState countSymbolicValueAndState : countSymbolicValueAndStates
+                    .getValueAndStateList()) {
+                  SMGSymbolicValue countSymbolicValue = countSymbolicValueAndState.getObject();
+                  int bufferSize = bufferAddressAndState.getObject().getObject().getSize() /
+                      MachineModel.getSizeofCharInBits();
+                  int bufferOffset = bufferAddressAndState.getObject().getOffset().getAsInt() /
+                      MachineModel.getSizeofCharInBits();
+                  int availableBuffer = bufferSize - bufferOffset;
+                  currentState.addErrorPredicate(countSymbolicValue, countValueSize.getAsInt(),
+                      SMGKnownExpValue.valueOf(availableBuffer), countValueSize.getAsInt(), cfaEdge);
+                }
+                if (smgPredicateManager.isErrorPathFeasible(currentState)) {
+                  currentState.setInvalidWrite();
+                  currentState.setErrorDescription("Predicate extension shows possibility of "
+                      + "overflow on memset");
+                }
+              }
               SMGAddressValueAndState memsetResult =
-                  expValueAndState.getSmgState().memset(bufferAddressAndState.getObject(),
+                  currentState.memset(bufferAddressAndState.getObject(),
                       countValueAndState.getObject(), chAndState.getObject(), expValueAndState.getObject());
               result.add(memsetResult);
             }
@@ -674,6 +696,11 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
                       .valueOf(availableSource), symbolicValueSize.getAsInt(), pCfaEdge);
                   sizeState.addErrorPredicate(symbolicValue, symbolicValueSize.getAsInt(), SMGKnownExpValue
                       .valueOf(availableTarget), symbolicValueSize.getAsInt(), pCfaEdge);
+                  if (smgPredicateManager.isErrorPathFeasible(sizeState)) {
+                    sizeState = sizeState.setInvalidRead();
+                    sizeState.setErrorDescription("Predicate extension shows possibility of overflow on current "
+                          + "code block");
+                  }
                 }
               }
             }

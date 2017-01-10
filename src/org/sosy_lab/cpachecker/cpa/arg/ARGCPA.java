@@ -256,7 +256,7 @@ public class ARGCPA extends AbstractSingleWrapperCPA implements
     return stopOperator.isCoveredBy(pElement, pOtherElement, wrappedProofChecker);
   }
 
-  void exportCounterexampleOnTheFly(ARGState pTargetState,
+  public void exportCounterexampleOnTheFly(ARGState pTargetState,
     CounterexampleInfo pCounterexampleInfo) throws InterruptedException {
     if (dumpErrorPathImmediately) {
       if (cexFilter.isRelevant(pCounterexampleInfo)) {

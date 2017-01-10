@@ -182,6 +182,18 @@ public class SMGFlowDependenceBasedInterpolator {
     }
   }
 
+  public Set<SMGPathDependence> buildMemoryDependence(ARGPath pErrorPath, ARGState pRoot,
+      Map<ARGState, SMGInterpolant> pPrevInterpolants, ARGReachedSet pReached) throws CPAException, InterruptedException {
+
+    SMGPathDependenceBuilder builder =
+        new SMGPathDependenceBuilder(logger, checker, strongestPostOp, heapAbstractionInterpolator,
+            pErrorPath, pRoot, pPrevInterpolants, pReached);
+
+    Set<SMGPathDependence> memoryDependence = builder.buildMemoryDependences();
+    return memoryDependence;
+  }
+
+
   private Map<ARGState, SMGInterpolant> joinMemoryDepedenceInterpolants(Set<SMGPathDependence> pMemoryDependence) throws RefinementFailedException {
 
     Map<ARGState, SMGInterpolant> newInterpolants = null;
