@@ -1563,6 +1563,15 @@ public class SMGTransferRelation extends SingleEdgeTransferRelation {
       return pNewState;
     }
 
+    //Transform explicit pointers like (void *)100
+    if (pRValueType instanceof CPointerType && !(pValue instanceof SMGAddressValue)) {
+      if (pValue instanceof SMGKnownSymValue) {
+        SMGExplicitValue explicit = pNewState.getExplicit((SMGKnownSymValue) pValue);
+        if (!explicit.isUnknown()) {
+          pValue = SMGKnownAddVal.valueOf(SMGObject.getNullObject(), (SMGKnownExpValue)explicit, (SMGKnownSymValue)pValue);
+        }
+      }
+    }
     return pNewState.writeValue(pAddress, pRValueType, pValue).getState();
   }
 
