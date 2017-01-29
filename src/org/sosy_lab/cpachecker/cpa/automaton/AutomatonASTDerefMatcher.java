@@ -51,6 +51,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIdExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CImaginaryLiteralExpression;
+import org.sosy_lab.cpachecker.cfa.ast.c.CInitializer;
 import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerList;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
@@ -130,7 +131,13 @@ public class AutomatonASTDerefMatcher {
 
     @Override
     public Boolean visit(CInitializerList pNode) throws UnrecognizedCFAEdgeException {
-      return false;
+      boolean res = false;
+
+      for (CInitializer initializer : pNode.getInitializers()) {
+        res = res | initializer.accept(this);
+      }
+
+      return res;
     }
 
     @Override
@@ -151,7 +158,7 @@ public class AutomatonASTDerefMatcher {
 
     @Override
     public Boolean visit(CInitializerExpression pNode) throws UnrecognizedCFAEdgeException {
-      return false;
+      return pNode.getExpression().accept(this);
     }
 
     @Override
