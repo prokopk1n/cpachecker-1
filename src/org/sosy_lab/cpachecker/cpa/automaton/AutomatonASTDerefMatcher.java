@@ -276,7 +276,13 @@ public class AutomatonASTDerefMatcher {
 
     @Override
     public Boolean visit(CVariableDeclaration pNode) throws UnrecognizedCFAEdgeException {
-      return pNode.getInitializer().accept(this);
+      CInitializer initializer = pNode.getInitializer();
+
+      if (initializer != null) {
+        return initializer.accept(this);
+      } else {
+        return false;
+      }
     }
 
     @Override
