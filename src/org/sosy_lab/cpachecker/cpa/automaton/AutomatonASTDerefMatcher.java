@@ -105,7 +105,8 @@ public class AutomatonASTDerefMatcher {
 
     private boolean match(CExpression exp) {
       args.extendTransitionVariablesSeries();
-      boolean res = patternAST.getMatcher().matches(exp, args);
+      CExpressionStatement exp_wrapper = new CExpressionStatement(exp.getFileLocation(), exp);
+      boolean res = patternAST.getMatcher().matches(exp_wrapper, args);
 
       if (!res) {
         args.scratchTransitionVariablesSeries();
