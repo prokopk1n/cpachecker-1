@@ -469,7 +469,7 @@ public class AutomatonExpressionArguments {
       }
 
       final CDeclarationEdge edge = (CDeclarationEdge) pEdge;
-      if (searchPattern.equals(edge.getDeclaration().getQualifiedName())) {
+      if (searchPattern.equals(edge.getDeclaration().getName())) {
         matchingEdges.add(edge);
       }
       return TraversalProcess.CONTINUE;
