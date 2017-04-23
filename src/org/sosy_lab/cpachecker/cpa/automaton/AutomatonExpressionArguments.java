@@ -296,12 +296,13 @@ public class AutomatonExpressionArguments {
     final CType newType = visitor.getMatching().get(0).getDeclaration().getType();
     final CIdExpression oldOperand1 = (CIdExpression) pExpression.getOperand1();
     final CIdExpression oldOperand2 = (CIdExpression) pExpression.getOperand2();
+    final CSimpleDeclaration operand1Declaration = getDeclarationForTransitionVariable(oldOperand1.getName());
     final CIdExpression newOperand1 =
         new CIdExpression(
             oldOperand1.getFileLocation(),
             newType,
-            oldOperand1.toASTString(),
-            getDeclarationForTransitionVariable(oldOperand1.getName()));
+            operand1Declaration.getName(),
+            operand1Declaration);
     final CIdExpression newOperand2 =
         new CIdExpression(
             oldOperand2.getFileLocation(),
