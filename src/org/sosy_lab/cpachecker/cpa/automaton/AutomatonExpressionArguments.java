@@ -33,6 +33,7 @@ import org.sosy_lab.cpachecker.cfa.ast.AAstNode;
 import org.sosy_lab.cpachecker.cfa.ast.AStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CAstNode;
 import org.sosy_lab.cpachecker.cfa.ast.c.CBinaryExpression;
+import org.sosy_lab.cpachecker.cfa.ast.c.CDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIdExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CSimpleDeclaration;
@@ -43,7 +44,6 @@ import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.c.CDeclarationEdge;
 import org.sosy_lab.cpachecker.cfa.types.c.CNumericTypes;
 import org.sosy_lab.cpachecker.cfa.types.c.CProblemType;
-import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.util.CFATraversal;
 import org.sosy_lab.cpachecker.util.CFATraversal.ForwardingCFAVisitor;
@@ -76,11 +76,9 @@ public class AutomatonExpressionArguments {
   private CFA cfa;
 
   /**
-   * A cache for binary expressions containing {@code CProblemType}s.
-   *
-   * @see #fixBinaryExpressionType(CBinaryExpression)
+   * A cache for identifiers containing {@code CProblemType}s.
    */
-  private static Map<String, CBinaryExpression> problemTypeExpressionCache = new HashMap<>();
+  private static Map<String, CIdExpression> problemTypeExpressionCache = new HashMap<>();
 
   /**
    * In this String all print messages of the Transition are collected.
@@ -257,71 +255,22 @@ public class AutomatonExpressionArguments {
   }
 
   /**
-   * For a {@code CBinaryExpression} of type {@code CProblemType} try to find an appropriate
-   * definition edge in the CFA and return a fixed expression.
-   *
-   * <p>Traverses the CFA searching for a declaration statement that matches the missing type in
-   * the binary expression. If no matching type declaration can be found, it returns the
-   * original expression. The CFA will only be traversed, if no matching expression could be
-   * found in the cache.</p>
+   * For a {@code CBinaryExpression} of type {@code CProblemType} try to fix type.
    *
    * @param pExpression The expression to fix.
    * @return An expression with a fixed expression type, if one could be found. Otherwise, the
    * original expression will be returned.
-   * @see #problemTypeExpressionCache
    */
   private CBinaryExpression fixBinaryExpressionType(final CBinaryExpression pExpression) {
-    Preconditions.checkNotNull(
-        cfa,
-        "Unable to fix a expression type with out a CFA. Inject a CFA with "
-            + "\"AutomatonExpressionArguments.setCFA(CFA)\" before calling the method "
-            + "\"fixBinaryExpressionType(CBinaryExpression)\"!");
-
-    if (problemTypeExpressionCache.containsKey(pExpression.getOperand2().toASTString())) {
-      // Use the cache if possible in order to avoid CFA traversal
-      return problemTypeExpressionCache.get(pExpression.getOperand2().toASTString());
-    }
-
-    final SearchDeclarationVisitor visitor =
-        new SearchDeclarationVisitor(pExpression.getOperand2().toASTString());
-    CFATraversal.dfs().traverseOnce(cfa.getMainFunction(), visitor);
-
-    if (visitor.getMatching().size() == 0) {
-      return pExpression;
-    }
-
-    assert visitor.getMatching().size() == 1 : "More than one matching edge found, result might "
-        + "be ambiguous!";
-
-    final CType newType = visitor.getMatching().get(0).getDeclaration().getType();
-    final CIdExpression oldOperand1 = (CIdExpression) pExpression.getOperand1();
-    final CIdExpression oldOperand2 = (CIdExpression) pExpression.getOperand2();
-    final CSimpleDeclaration operand1Declaration = getDeclarationForTransitionVariable(oldOperand1.getName());
-    final CIdExpression newOperand1 =
-        new CIdExpression(
-            oldOperand1.getFileLocation(),
-            newType,
-            operand1Declaration.getName(),
-            operand1Declaration);
-    final CIdExpression newOperand2 =
-        new CIdExpression(
-            oldOperand2.getFileLocation(),
-            newType,
-            oldOperand2.toASTString(),
-            oldOperand2.getDeclaration() == null
-                ? visitor.getMatching().get(0).getDeclaration()
-                : oldOperand2.getDeclaration());
-
-    final CBinaryExpression expression =
-        new CBinaryExpression(
-            pExpression.getFileLocation(),
-            newType /*expression type*/,
-            newType /*calculation type*/,
-            newOperand1,
-            newOperand2,
-            pExpression.getOperator());
-    problemTypeExpressionCache.put(pExpression.getOperand2().toASTString(), expression);
-    return expression;
+    // TODO: implement correct type fixing logic.
+    final CBinaryExpression fixedExpression = new CBinaryExpression(
+        pExpression.getFileLocation(),
+        pExpression.getOperand2().getExpressionType(),
+        pExpression.getOperand2().getExpressionType(),
+        pExpression.getOperand1(),
+        pExpression.getOperand2(),
+        pExpression.getOperator());
+    return fixedExpression;
   }
 
   /**
@@ -366,6 +315,38 @@ public class AutomatonExpressionArguments {
 
             return new CIntegerLiteralExpression(pNode.getFileLocation(),
                 CNumericTypes.INT, BigInteger.valueOf(var.getValue()));
+          } else {
+            // A variable inside a substitution template doesn't have a declaration, find it in CFA.
+            Preconditions.checkNotNull(
+                cfa,
+                "Unable to fix a expression type with out a CFA. Inject a CFA with "
+                    + "\"AutomatonExpressionArguments.setCFA(CFA)\" before calling the method "
+                    + "\"substituteJokerVariables(CAstNode)\"!");
+
+            if (problemTypeExpressionCache.containsKey(exp.toASTString())) {
+              // Use the cache if possible in order to avoid CFA traversal
+              return problemTypeExpressionCache.get(exp.toASTString());
+            }
+
+            final SearchDeclarationVisitor visitor =
+                new SearchDeclarationVisitor(exp.toASTString());
+            CFATraversal.dfs().traverseOnce(cfa.getMainFunction(), visitor);
+
+            if (visitor.getMatching().size() == 0) {
+              return exp;
+            }
+
+            assert visitor.getMatching().size() == 1 : "More than one matching edge found, result might "
+                + "be ambiguous!";
+
+            final CDeclaration newDeclaration = visitor.getMatching().get(0).getDeclaration();
+            final CIdExpression newExp = new CIdExpression(
+                exp.getFileLocation(),
+                newDeclaration.getType(),
+                exp.toASTString(),
+                exp.getDeclaration() == null ? newDeclaration : exp.getDeclaration());
+            problemTypeExpressionCache.put(exp.toASTString(), newExp);
+            return newExp;
           }
         }
 
