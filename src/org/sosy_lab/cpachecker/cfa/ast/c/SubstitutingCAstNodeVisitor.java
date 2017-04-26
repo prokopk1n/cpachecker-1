@@ -45,22 +45,6 @@ public class SubstitutingCAstNodeVisitor implements CAstNodeVisitor<CAstNode, Un
     this.sp = Preconditions.checkNotNull(pSubstituteProvider);
   }
 
-  private @Nullable CAstNode findSubstitute(final CAstNode pNode) {
-    final CAstNode preTypeCheck = sp.findSubstitute(pNode);
-    final CAstNode postTypeCheck;
-    if (preTypeCheck != null) {
-      postTypeCheck = sp.adjustTypesAfterSubstitution(preTypeCheck);
-    } else {
-      postTypeCheck = sp.adjustTypesAfterSubstitution(pNode);
-    }
-
-    if (postTypeCheck == null) {
-      return preTypeCheck;
-    } else {
-      return postTypeCheck;
-    }
-  }
-
   private <T> T firstNotNull(final T pExpr1, final T pExpr2) {
     if (pExpr1 != null) {
       return pExpr1;
@@ -71,80 +55,76 @@ public class SubstitutingCAstNodeVisitor implements CAstNodeVisitor<CAstNode, Un
     return null;
   }
 
+  private CAstNode adjustTypesAfterSubstitution(CAstNode pNode) {
+    return firstNotNull(sp.adjustTypesAfterSubstitution(pNode), pNode);
+  }
+
   @Override
   public CAstNode visit(final CArrayDesignator pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
+    CAstNode result = sp.findSubstitute(pNode);
+
+    if (result == null) {
+      final CExpression oldSubEx = pNode.getSubscriptExpression();
+      final CExpression newSubEx = (CExpression) oldSubEx.accept(this);
+      if (oldSubEx != newSubEx) {
+        result = new CArrayDesignator(
+            oldSubEx.getFileLocation(),
+            newSubEx);
+      }
     }
 
-    final CExpression oldSubEx = pNode.getSubscriptExpression();
-    final CExpression newSubEx = (CExpression) oldSubEx.accept(this);
-    if (oldSubEx != newSubEx) {
-      return new CArrayDesignator(
-          oldSubEx.getFileLocation(),
-          newSubEx);
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
   public CAstNode visit(final CArrayRangeDesignator pNode)  {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
+    CAstNode result = sp.findSubstitute(pNode);
+
+    if (result == null) {
+      final CExpression oldCeil = pNode.getCeilExpression();
+      final CExpression newCeil = (CExpression) pNode.getCeilExpression().accept(this);
+
+      final CExpression oldFloor = pNode.getFloorExpression();
+      final CExpression newFloor = (CExpression) pNode.getFloorExpression().accept(this);
+
+      if (oldCeil != newCeil || newFloor != oldFloor) {
+        result = new CArrayRangeDesignator(
+            pNode.getFileLocation(),
+            firstNotNull(newFloor, oldFloor),
+            firstNotNull(newCeil, oldCeil));
+      }
     }
 
-    final CExpression oldCeil = pNode.getCeilExpression();
-    final CExpression newCeil = (CExpression) pNode.getCeilExpression().accept(this);
-
-    final CExpression oldFloor = pNode.getFloorExpression();
-    final CExpression newFloor = (CExpression) pNode.getFloorExpression().accept(this);
-
-    if (oldCeil != newCeil || newFloor != oldFloor) {
-      return new CArrayRangeDesignator(
-          pNode.getFileLocation(),
-          firstNotNull(newFloor, oldFloor),
-          firstNotNull(newCeil, oldCeil));
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
   public CAstNode visit(final CFieldDesignator pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(sp.findSubstitute(pNode), pNode));
   }
 
   @Override
   public CAstNode visit(final CInitializerList pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
-    }
+    CAstNode result = sp.findSubstitute(pNode);
 
-    boolean initChanged = false;
-    List<CInitializer> newInitializerList = Lists.newArrayListWithExpectedSize(pNode.getInitializers().size());
+    if (result == null) {
+      boolean initChanged = false;
+      List<CInitializer> newInitializerList = Lists.newArrayListWithExpectedSize(pNode.getInitializers().size());
 
-    for (CInitializer oldInit: pNode.getInitializers()) {
-      CInitializer newInit = (CInitializer) oldInit.accept(this);
-      if (newInit != oldInit) {
-        initChanged = true;
+      for (CInitializer oldInit: pNode.getInitializers()) {
+        CInitializer newInit = (CInitializer) oldInit.accept(this);
+        if (newInit != oldInit) {
+          initChanged = true;
+        }
+        newInitializerList.add(newInit);
       }
-      newInitializerList.add(newInit);
+
+      if (initChanged) {
+        result = new CInitializerList(pNode.getFileLocation(), newInitializerList);
+      }
     }
 
-    if (initChanged) {
-      return new CInitializerList(pNode.getFileLocation(), newInitializerList);
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
@@ -169,112 +149,94 @@ public class SubstitutingCAstNodeVisitor implements CAstNodeVisitor<CAstNode, Un
 
   @Override
   public CAstNode visit(final CBinaryExpression pNode) {
-    CAstNode subst = substituteOnBinExpr(pNode);
-    if (subst == null) {
-      return pNode;
-    } else {
-      return subst;
+    CAstNode result = sp.findSubstitute(pNode);
+
+    if (result == null) {
+      final CExpression oldOp1 = pNode.getOperand1();
+      final CExpression newOp1 = (CExpression) pNode.getOperand1().accept(this);
+
+      final CExpression oldOp2 = pNode.getOperand2();
+      final CExpression newOp2 = (CExpression) pNode.getOperand2().accept(this);
+
+      if (oldOp1 != newOp1 || oldOp2 != newOp2) {
+        result = new CBinaryExpression(
+            pNode.getFileLocation(),
+            pNode.getExpressionType(),
+            pNode.getCalculationType(),
+            firstNotNull(newOp1, oldOp1),
+            firstNotNull(newOp2, oldOp2),
+            pNode.getOperator());
+      }
     }
-  }
 
-  private CAstNode substituteOnBinExpr(final CBinaryExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
-    }
-
-    final CExpression oldOp1 = pNode.getOperand1();
-    final CExpression newOp1 = (CExpression) pNode.getOperand1().accept(this);
-
-    final CExpression oldOp2 = pNode.getOperand2();
-    final CExpression newOp2 = (CExpression) pNode.getOperand2().accept(this);
-
-    if (oldOp1 != newOp1 || oldOp2 != newOp2) {
-      return new CBinaryExpression(
-          pNode.getFileLocation(),
-          pNode.getExpressionType(),
-          pNode.getCalculationType(),
-          firstNotNull(newOp1, oldOp1),
-          firstNotNull(newOp2, oldOp2),
-          pNode.getOperator());
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
   public CAstNode visit(final CCastExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
+    CAstNode result = sp.findSubstitute(pNode);
+
+    if (result == null) {
+      final CExpression oldOp1 = pNode.getOperand();
+      final CExpression newOp1 = (CExpression) pNode.getOperand().accept(this);
+
+      if (oldOp1 != newOp1) {
+        result = new CCastExpression(
+            pNode.getFileLocation(),
+            pNode.getExpressionType(),
+            newOp1);
+      }
     }
 
-    final CExpression oldOp1 = pNode.getOperand();
-    final CExpression newOp1 = (CExpression) pNode.getOperand().accept(this);
-
-    if (oldOp1 != newOp1) {
-      return new CCastExpression(
-          pNode.getFileLocation(),
-          pNode.getExpressionType(),
-          newOp1);
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
   public CAstNode visit(final CTypeIdExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(sp.findSubstitute(pNode), pNode));
   }
 
   @Override
   public CAstNode visit(final CUnaryExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
+    CAstNode result = sp.findSubstitute(pNode);
+
+    if (result == null) {
+      final CExpression oldOp1 = pNode.getOperand();
+      final CExpression newOp1 = (CExpression) pNode.getOperand().accept(this);
+
+      if (oldOp1 != newOp1) {
+        result = new CUnaryExpression(
+            pNode.getFileLocation(),
+            pNode.getExpressionType(),
+            firstNotNull(newOp1, oldOp1),
+            pNode.getOperator());
+      }
     }
 
-    final CExpression oldOp1 = pNode.getOperand();
-    final CExpression newOp1 = (CExpression) pNode.getOperand().accept(this);
-
-    if (oldOp1 != newOp1) {
-      return new CUnaryExpression(
-          pNode.getFileLocation(),
-          pNode.getExpressionType(),
-          firstNotNull(newOp1, oldOp1),
-          pNode.getOperator());
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
   public CAstNode visit(final CArraySubscriptExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
+    CAstNode result = sp.findSubstitute(pNode);
+
+    if (result == null) {
+      final CExpression oldOp1 = pNode.getArrayExpression();
+      final CExpression newOp1 = (CExpression) pNode.getArrayExpression().accept(this);
+
+      final CExpression oldOp2 = pNode.getSubscriptExpression();
+      final CExpression newOp2 = (CExpression) pNode.getSubscriptExpression().accept(this);
+
+      if (oldOp1 != newOp1) {
+        result = new CArraySubscriptExpression(
+            pNode.getFileLocation(),
+            pNode.getExpressionType(),
+            firstNotNull(newOp1, oldOp1),
+            firstNotNull(newOp2, oldOp2));
+      }
     }
 
-    final CExpression oldOp1 = pNode.getArrayExpression();
-    final CExpression newOp1 = (CExpression) pNode.getArrayExpression().accept(this);
-
-    final CExpression oldOp2 = pNode.getSubscriptExpression();
-    final CExpression newOp2 = (CExpression) pNode.getSubscriptExpression().accept(this);
-
-    if (oldOp1 != newOp1) {
-      return new CArraySubscriptExpression(
-          pNode.getFileLocation(),
-          pNode.getExpressionType(),
-          firstNotNull(newOp1, oldOp1),
-          firstNotNull(newOp2, oldOp2));
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
@@ -284,92 +246,56 @@ public class SubstitutingCAstNodeVisitor implements CAstNodeVisitor<CAstNode, Un
 
   @Override
   public CAstNode visit(final CFieldReference pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(sp.findSubstitute(pNode), pNode));
   }
 
   @Override
   public CAstNode visit(final CIdExpression pNode) {
-    CAstNode subst = findSubstitute(pNode);
-    if (subst == null) {
-      return pNode;
-    } else {
-      return subst;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(sp.findSubstitute(pNode), pNode));
   }
 
   @Override
   public CAstNode visit(final CPointerExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
+    CAstNode result = sp.findSubstitute(pNode);
+
+    if (result == null) {
+      final CExpression oldOp1 = pNode.getOperand();
+      final CExpression newOp1 = (CExpression) pNode.getOperand().accept(this);
+
+      if (oldOp1 != newOp1) {
+        result = new CPointerExpression(
+            pNode.getFileLocation(),
+            pNode.getExpressionType(),
+            firstNotNull(newOp1, oldOp1));
+      }
     }
 
-    final CExpression oldOp1 = pNode.getOperand();
-    final CExpression newOp1 = (CExpression) pNode.getOperand().accept(this);
-
-    if (oldOp1 != newOp1) {
-      return new CPointerExpression(
-          pNode.getFileLocation(),
-          pNode.getExpressionType(),
-          firstNotNull(newOp1, oldOp1));
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
   public CAstNode visit(final CCharLiteralExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(sp.findSubstitute(pNode), pNode));
   }
 
   @Override
   public CAstNode visit(final CFloatLiteralExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(sp.findSubstitute(pNode), pNode));
   }
 
   @Override
   public CAstNode visit(final CImaginaryLiteralExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(sp.findSubstitute(pNode), pNode));
   }
 
   @Override
   public CAstNode visit(final CIntegerLiteralExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(sp.findSubstitute(pNode), pNode));
   }
 
   @Override
   public CAstNode visit(final CStringLiteralExpression pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(sp.findSubstitute(pNode), pNode));
   }
 
   @Override
@@ -399,62 +325,59 @@ public class SubstitutingCAstNodeVisitor implements CAstNodeVisitor<CAstNode, Un
 
   @Override
   public CAstNode visit(final CVariableDeclaration pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
+    CAstNode result = sp.findSubstitute(pNode);
+
+    if (result == null) {
+      CInitializer init = (CInitializer) sp.findSubstitute(pNode.getInitializer());
+      if (init != null && init != pNode.getInitializer()) {
+        result = new CVariableDeclaration(pNode.getFileLocation(), pNode.isGlobal(),
+            pNode.getCStorageClass(), pNode.getType(), pNode.getName(),
+            pNode.getOrigName(), pNode.getQualifiedName(),
+            init);
+      }
     }
 
-    CInitializer init = (CInitializer) findSubstitute(pNode.getInitializer());
-    if (init != null && init != pNode.getInitializer()) {
-      return new CVariableDeclaration(pNode.getFileLocation(), pNode.isGlobal(),
-          pNode.getCStorageClass(), pNode.getType(), pNode.getName(),
-          pNode.getOrigName(), pNode.getQualifiedName(),
-          init);
-    }
-
-    return pNode;
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
   public CAstNode visit(final CExpressionAssignmentStatement pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
+    CAstNode result = sp.findSubstitute(pNode);
+
+    if (result == null) {
+      final CLeftHandSide oldLeft = pNode.getLeftHandSide();
+      final CLeftHandSide newLeft = (CLeftHandSide) pNode.getLeftHandSide().accept(this);
+
+      final CExpression oldRight = pNode.getRightHandSide();
+      final CExpression newRight = (CExpression) pNode.getRightHandSide().accept(this);
+
+      if (oldRight != newRight || oldLeft != newLeft) {
+        result = new CExpressionAssignmentStatement(
+            pNode.getFileLocation(),
+            firstNotNull(newLeft, oldLeft),
+            firstNotNull(newRight, oldRight));
+      }
     }
 
-    final CLeftHandSide oldLeft = pNode.getLeftHandSide();
-    final CLeftHandSide newLeft = (CLeftHandSide) pNode.getLeftHandSide().accept(this);
-
-    final CExpression oldRight = pNode.getRightHandSide();
-    final CExpression newRight = (CExpression) pNode.getRightHandSide().accept(this);
-
-    if (oldRight != newRight || oldLeft != newLeft) {
-      return new CExpressionAssignmentStatement(
-          pNode.getFileLocation(),
-          firstNotNull(newLeft, oldLeft),
-          firstNotNull(newRight, oldRight));
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
   public CAstNode visit(final CExpressionStatement pNode) {
-    final CAstNode result = findSubstitute(pNode);
-    if (result != null) {
-      return result;
+    CAstNode result = sp.findSubstitute(pNode);
+
+    if (result == null) {
+      final CExpression oldRight = pNode.getExpression();
+      final CExpression newRight = (CExpression) pNode.getExpression().accept(this);
+
+      if (oldRight != newRight) {
+        result = new CExpressionStatement(
+            pNode.getFileLocation(),
+            newRight);
+      }
     }
 
-    final CExpression oldRight = pNode.getExpression();
-    final CExpression newRight = (CExpression) pNode.getExpression().accept(this);
-
-    if (oldRight != newRight) {
-      return new CExpressionStatement(
-          pNode.getFileLocation(),
-          newRight);
-    } else {
-      return pNode;
-    }
+    return adjustTypesAfterSubstitution(firstNotNull(result, pNode));
   }
 
   @Override
