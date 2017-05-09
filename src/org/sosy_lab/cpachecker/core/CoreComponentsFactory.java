@@ -48,6 +48,7 @@ import org.sosy_lab.cpachecker.core.algorithm.counterexamplecheck.Counterexample
 import org.sosy_lab.cpachecker.core.algorithm.impact.ImpactAlgorithm;
 import org.sosy_lab.cpachecker.core.algorithm.mpa.MultiPropertyAnalysis;
 import org.sosy_lab.cpachecker.core.algorithm.mpa.MultiPropertyAnalysisFullReset;
+import org.sosy_lab.cpachecker.core.algorithm.nullderef.NullDerefArgAnnotationAlgorithm;
 import org.sosy_lab.cpachecker.core.algorithm.pcc.AlgorithmWithPropertyCheck;
 import org.sosy_lab.cpachecker.core.algorithm.pcc.PartialARGsCombiner;
 import org.sosy_lab.cpachecker.core.algorithm.pcc.ProofCheckAlgorithm;
@@ -156,6 +157,10 @@ public class CoreComponentsFactory {
       description = "run a sequence of analysis, where the previous ARG is inserted into the current ARGReplayCPA.")
   private boolean useRestartAlgorithmWithARGReplay = false;
 
+  @Option(secure=true, name="nullDerefArgAnnotationAlgorithm",
+      description = "do analysis checking whether each pointer argument of each function can be dereferenced without null check.")
+  private boolean useNullDerefArgAnnotationAlgorithm = false;
+
   private final Configuration config;
   private final LogManager logger;
   private final ShutdownManager shutdownManager;
@@ -212,7 +217,8 @@ public class CoreComponentsFactory {
 
     } else if (useRestartAlgorithmWithARGReplay) {
       algorithm = new RestartAlgorithmWithARGReplay(config, logger, shutdownNotifier, cfa);
-
+    } else if (useNullDerefArgAnnotationAlgorithm) {
+      algorithm = new NullDerefArgAnnotationAlgorithm(config, logger, shutdownNotifier, programDenotation, cfa);
     } else {
 
       algorithm = CPAAlgorithm.create(cpa, logger, config, shutdownNotifier, new AlgorithmIterationListener() {
