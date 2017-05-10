@@ -33,15 +33,16 @@ import org.sosy_lab.cpachecker.cfa.ast.AAstNode;
 import org.sosy_lab.cpachecker.cfa.ast.AStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CAstNode;
 import org.sosy_lab.cpachecker.cfa.ast.c.CBinaryExpression;
-import org.sosy_lab.cpachecker.cfa.ast.c.CDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIdExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
+import org.sosy_lab.cpachecker.cfa.ast.c.CParameterDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CSimpleDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.SubstitutingCAstNodeVisitor;
 import org.sosy_lab.cpachecker.cfa.ast.c.SubstitutingCAstNodeVisitor.SubstituteProvider;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.model.c.CDeclarationEdge;
+import org.sosy_lab.cpachecker.cfa.model.c.CFunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.types.c.CNumericTypes;
 import org.sosy_lab.cpachecker.cfa.types.c.CProblemType;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
@@ -336,10 +337,10 @@ public class AutomatonExpressionArguments {
               return exp;
             }
 
-            assert visitor.getMatching().size() == 1 : "More than one matching edge found, result might "
+            assert visitor.getMatching().size() == 1 : "More than one matching declaration found, result might "
                 + "be ambiguous!";
 
-            final CDeclaration newDeclaration = visitor.getMatching().get(0).getDeclaration();
+            final CSimpleDeclaration newDeclaration = visitor.getMatching().get(0);
             final CIdExpression newExp = new CIdExpression(
                 exp.getFileLocation(),
                 newDeclaration.getType(),
@@ -436,7 +437,7 @@ public class AutomatonExpressionArguments {
    */
   private final static class SearchDeclarationVisitor extends ForwardingCFAVisitor {
 
-    private final List<CDeclarationEdge> matchingEdges = new ArrayList<>();
+    private final List<CSimpleDeclaration> matchingDeclarations = new ArrayList<>();
     private final String searchPattern;
 
     SearchDeclarationVisitor(final String pSearchPattern) {
@@ -446,19 +447,29 @@ public class AutomatonExpressionArguments {
 
     @Override
     public TraversalProcess visitEdge(final CFAEdge pEdge) {
+      if (pEdge.getPredecessor() instanceof CFunctionEntryNode) {
+        CFunctionEntryNode entryNode = (CFunctionEntryNode) pEdge.getPredecessor();
+
+        for (CParameterDeclaration paramDeclaration : entryNode.getFunctionParameters()) {
+          if (searchPattern.equals(paramDeclaration.getName())) {
+            matchingDeclarations.add(paramDeclaration);
+          }
+        }
+      }
+
       if (!(pEdge instanceof CDeclarationEdge)) {
         return TraversalProcess.CONTINUE;
       }
 
       final CDeclarationEdge edge = (CDeclarationEdge) pEdge;
       if (searchPattern.equals(edge.getDeclaration().getName())) {
-        matchingEdges.add(edge);
+        matchingDeclarations.add(edge.getDeclaration());
       }
       return TraversalProcess.CONTINUE;
     }
 
-    List<CDeclarationEdge> getMatching() {
-      return matchingEdges;
+    List<CSimpleDeclaration> getMatching() {
+      return matchingDeclarations;
     }
   }
 
