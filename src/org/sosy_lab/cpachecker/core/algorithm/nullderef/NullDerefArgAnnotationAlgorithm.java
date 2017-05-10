@@ -247,8 +247,18 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MAYDEREF");
     writer.println("INITIAL STATE Init;");
-    writer.println("STATE USEALL Init :");
-    writer.println("MATCH DEREF {$1} -> SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;");
+    writer.println("STATE USEALL Init:");
+
+    writer.print("  MATCH ENTRY -> ASSUME {");
+
+    for (String nonNullParameter : nonNullParameters) {
+      writer.print(nonNullParameter);
+      writer.print(" != (void *) 0;");
+    }
+
+    writer.println("} GOTO Init;");
+
+    writer.println("  MATCH DEREF {$1} -> SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;");
     writer.println("END AUTOMATON");
     writer.close();
     return fileName;
