@@ -25,7 +25,12 @@ package org.sosy_lab.cpachecker.cfa;
 
 import static com.google.common.base.Preconditions.*;
 
-import java.util.Map;
+import com.google.common.base.Optional;
+import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.SetMultimap;
 
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
@@ -34,12 +39,8 @@ import org.sosy_lab.cpachecker.util.LiveVariables;
 import org.sosy_lab.cpachecker.util.LoopStructure;
 import org.sosy_lab.cpachecker.util.VariableClassification;
 
-import com.google.common.base.Optional;
-import com.google.common.collect.ImmutableCollection;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableSortedMap;
-import com.google.common.collect.ImmutableSortedSet;
-import com.google.common.collect.SetMultimap;
+import java.util.Collection;
+import java.util.Map;
 
 /**
  * This class represents a CFA after it has been fully created (parsing, linking
@@ -59,7 +60,7 @@ class ImmutableCFA implements CFA {
   ImmutableCFA(
       MachineModel pMachineModel,
       Map<String, FunctionEntryNode> pFunctions,
-      SetMultimap<String, CFANode> pAllNodes,
+      Collection<CFANode> pAllNodes,
       FunctionEntryNode pMainFunction,
       Optional<LoopStructure> pLoopStructure,
       Optional<VariableClassification> pVarClassification,
@@ -68,7 +69,7 @@ class ImmutableCFA implements CFA {
 
     machineModel = pMachineModel;
     functions = ImmutableSortedMap.copyOf(pFunctions);
-    allNodes = ImmutableSortedSet.copyOf(pAllNodes.values());
+    allNodes = ImmutableSortedSet.copyOf(pAllNodes);
     mainFunction = checkNotNull(pMainFunction);
     loopStructure = pLoopStructure;
     varClassification = pVarClassification;
@@ -76,6 +77,19 @@ class ImmutableCFA implements CFA {
     language = pLanguage;
 
     checkArgument(functions.get(mainFunction.getFunctionName()) == mainFunction);
+  }
+
+  ImmutableCFA(
+      MachineModel pMachineModel,
+      Map<String, FunctionEntryNode> pFunctions,
+      SetMultimap<String, CFANode> pAllNodes,
+      FunctionEntryNode pMainFunction,
+      Optional<LoopStructure> pLoopStructure,
+      Optional<VariableClassification> pVarClassification,
+      Optional<LiveVariables> pLiveVariables,
+      Language pLanguage) {
+
+    this(pMachineModel, pFunctions, pAllNodes.values(), pMainFunction, pLoopStructure, pVarClassification, pLiveVariables, pLanguage);
   }
 
   private ImmutableCFA(MachineModel pMachineModel, Language pLanguage) {
@@ -166,4 +180,8 @@ class ImmutableCFA implements CFA {
     return language;
   }
 
+  @Override
+  public CFA getCopyWithMainFunction(FunctionEntryNode pNewMainFunction) {
+    return new ImmutableCFA(machineModel, functions, allNodes, pNewMainFunction, loopStructure, varClassification, liveVariables, language);
+  }
 }

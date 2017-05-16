@@ -149,7 +149,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   private final ShutdownNotifier shutdownNotifier;
   private final NullDerefArgAnnotationAlgorithmStatistics stats;
   private final String filename;
-  private final CFA cfa;
+  private CFA cfa;
   private final Configuration globalConfig;
 
   private Algorithm currentAlgorithm;
@@ -183,6 +183,8 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       if (pointerParameterNames.isEmpty()) {
         continue;
       }
+
+      cfa = cfa.getCopyWithMainFunction(entryNode);
 
       try {
         if (checkNullDereferencePossibility(entryNode, pointerParameterNames)) {
@@ -299,7 +301,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
       // run algorithm
       AlgorithmStatus status = currentAlgorithm.run(currentReached);
-      return !from(currentReached).anyMatch(IS_TARGET_STATE) && status.isPrecise();
+      return from(currentReached).anyMatch(IS_TARGET_STATE) && status.isPrecise();
     } catch (InvalidConfigurationException e) {
       // TODO ???
       e.printStackTrace();
