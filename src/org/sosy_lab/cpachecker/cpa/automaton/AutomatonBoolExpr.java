@@ -25,9 +25,8 @@ package org.sosy_lab.cpachecker.cpa.automaton;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import java.util.Set;
-import java.util.logging.Level;
-import java.util.regex.Pattern;
+import com.google.common.base.Optional;
+import com.google.common.base.Preconditions;
 
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.cpachecker.cfa.ast.AFunctionCall;
@@ -56,8 +55,9 @@ import org.sosy_lab.cpachecker.util.SourceLocationMapper;
 import org.sosy_lab.cpachecker.util.SourceLocationMapper.LocationDescriptor;
 import org.sosy_lab.cpachecker.util.automaton.AutomatonGraphmlCommon;
 
-import com.google.common.base.Optional;
-import com.google.common.base.Preconditions;
+import java.util.Set;
+import java.util.logging.Level;
+import java.util.regex.Pattern;
 
 /**
  * Implements a boolean expression that evaluates and returns a <code>MaybeBoolean</code> value when <code>eval()</code> is called.

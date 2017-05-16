@@ -26,19 +26,10 @@ package org.sosy_lab.cpachecker.cfa.parser.eclipse.c;
 import static com.google.common.base.Preconditions.checkState;
 import static org.sosy_lab.cpachecker.cfa.CFACreationUtils.isReachableNode;
 
-import java.math.BigInteger;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.logging.Level;
-
-import javax.annotation.Nullable;
+import com.google.common.base.Function;
+import com.google.common.base.Optional;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 
 import org.eclipse.cdt.core.dom.ast.ASTVisitor;
 import org.eclipse.cdt.core.dom.ast.IASTASMDeclaration;
@@ -127,10 +118,19 @@ import org.sosy_lab.cpachecker.util.CFATraversal;
 import org.sosy_lab.cpachecker.util.CFAUtils;
 import org.sosy_lab.cpachecker.util.Pair;
 
-import com.google.common.base.Function;
-import com.google.common.base.Optional;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
+import java.math.BigInteger;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.logging.Level;
+
+import javax.annotation.Nullable;
 
 /**
  * Builder to traverse AST.
@@ -163,6 +163,7 @@ class CFAFunctionBuilder extends ASTVisitor {
   // Data structures for handling function declarations
   private FunctionEntryNode cfa = null;
   private Set<CFANode> cfaNodes = null;
+  private FunctionExitNode beforeReturnNode = null;
 
   // There can be global declarations in a function
   // because we move some declarations to the global scope (e.g., static variables)
@@ -442,6 +443,12 @@ class CFAFunctionBuilder extends ASTVisitor {
     final BlankEdge dummyEdge = new BlankEdge("", FileLocation.DUMMY,
         startNode, nextNode, "Function start dummy edge");
     addToCFA(dummyEdge);
+
+    beforeReturnNode = new FunctionExitNode(nameOfFunction);
+    beforeReturnNode.setEntryNode(startNode);
+    final BlankEdge exitDummyEdge = new BlankEdge("", FileLocation.DUMMY,
+        beforeReturnNode, returnNode, "Function end dummy edge");
+    CFACreationUtils.addEdgeUnconditionallyToCFA(exitDummyEdge);
 
     return PROCESS_CONTINUE;
   }
@@ -769,7 +776,6 @@ class CFAFunctionBuilder extends ASTVisitor {
       FileLocation fileloc) {
 
     CFANode prevNode = locStack.pop();
-    FunctionExitNode functionExitNode = cfa.getExitNode();
 
     CReturnStatement returnstmt = astCreator.convert(returnStatement);
     prevNode = handleAllSideEffects(prevNode, fileloc, returnStatement.getRawSignature(), true);
@@ -778,7 +784,7 @@ class CFAFunctionBuilder extends ASTVisitor {
       returnstmt.getReturnValue().get().accept(checkBinding);
     }
     CReturnStatementEdge edge = new CReturnStatementEdge(returnStatement.getRawSignature(),
-    returnstmt, fileloc, prevNode, functionExitNode);
+    returnstmt, fileloc, prevNode, beforeReturnNode);
     addToCFA(edge);
 
     CFANode nextNode = newCFANode();
