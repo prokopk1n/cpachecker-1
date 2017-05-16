@@ -187,7 +187,15 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       cfa = cfa.getCopyWithMainFunction(entryNode);
 
       try {
-        if (checkNullDereferencePossibility(entryNode, pointerParameterNames)) {
+        for (String parameterName : pointerParameterNames) {
+          if (mustDereferenceNull(entryNode, parameterName)) {
+            logger.log(Level.INFO, "Parameter " + parameterName + " of function " + entryNode.getFunctionName() + " must cause NULL dereference");
+          } else {
+            logger.log(Level.INFO, "Parameter " + parameterName + " of function " + entryNode.getFunctionName() + " does not always cause NULL dereference");
+          }
+        }
+
+        if (mayDereferenceNull(entryNode, pointerParameterNames)) {
           logger.log(Level.INFO, "Function " + entryNode.getFunctionName() + " can always dereference NULL");
           continue;
         }
@@ -196,7 +204,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
           ArrayList<String> otherPointerParameterNames = new ArrayList<>(pointerParameterNames);
           otherPointerParameterNames.remove(parameterName);
 
-          if (checkNullDereferencePossibility(entryNode, otherPointerParameterNames)) {
+          if (mayDereferenceNull(entryNode, otherPointerParameterNames)) {
             logger.log(Level.INFO, "Parameter " + parameterName + " of function " + entryNode.getFunctionName() + " can cause NULL dereference");
           } else {
             logger.log(Level.INFO, "Parameter " + parameterName + " of function " + entryNode.getFunctionName() + " can not cause NULL dereference");
@@ -245,7 +253,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   }
 
   private String generateNullDereferencePossibilitySpec(List<String> nonNullParameters) throws FileNotFoundException {
-    String fileName = "tmp.spc";
+    String fileName = "may_deref_tmp.spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MAYDEREF");
     writer.println("INITIAL STATE Init;");
@@ -266,17 +274,38 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     return fileName;
   }
 
-  private Boolean checkNullDereferencePossibility(FunctionEntryNode entryNode, List<String> nonNullParameters) throws FileNotFoundException {
+  private String generateUnavoidableNullDereferenceSpec(String pNullParameter) throws FileNotFoundException {
+    String fileName = "must_deref_tmp.spc";
+    PrintWriter writer = new PrintWriter(fileName);
+    writer.println("CONTROL AUTOMATON MUSTDEREF");
+    writer.println("INITIAL STATE Init;");
+    writer.println("STATE USEALL Init:");
+
+    writer.println("  MATCH ENTRY -> ASSUME {" + pNullParameter + " == (void *) 0} GOTO Init;");
+    writer.println("  MATCH DEREF {$1} -> ASSUME {$1 != (void *) 0} GOTO Init;");
+    writer.println("  MATCH EXIT -> ERROR;");
+    writer.println("END AUTOMATON");
+    writer.close();
+    return fileName;
+  }
+
+  private Boolean mayDereferenceNull(FunctionEntryNode pEntryNode, List<String> pNonNullParameters) throws FileNotFoundException {
+    return runWithSpecification(pEntryNode, generateNullDereferencePossibilitySpec(pNonNullParameters));
+  }
+
+  private Boolean mustDereferenceNull(FunctionEntryNode pEntryNode, String pNullParameter) throws FileNotFoundException {
+    return !runWithSpecification(pEntryNode, generateUnavoidableNullDereferenceSpec(pNullParameter));
+  }
+
+  private Boolean runWithSpecification(FunctionEntryNode pEntryNode, String pSpecificationFilePath) {
     stats.totalTime.start();
 
     ShutdownManager singleShutdownManager = ShutdownManager.createWithParent(shutdownNotifier);
 
-    String specFileName = generateNullDereferencePossibilitySpec(nonNullParameters);
-
     try {
       ConfigurationBuilder singleConfigBuilder = Configuration.builder();
       singleConfigBuilder.copyFrom(globalConfig);
-      singleConfigBuilder.setOption("specification", specFileName);
+      singleConfigBuilder.setOption("specification", pSpecificationFilePath);
       Configuration singleConfig = singleConfigBuilder.build();
 
       NullDerefArgAnnotationAlgorithmOptions singleOptions = new NullDerefArgAnnotationAlgorithmOptions();
@@ -290,7 +319,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       ReachedSetFactory singleReachedSetFactory = new ReachedSetFactory(singleConfig);
       ConfigurableProgramAnalysis currentCpa = createCPA(singleReachedSetFactory, singleConfig, singleLogger, singleShutdownManager.getNotifier(), stats);
       Algorithm currentAlgorithm = createAlgorithm(currentCpa, singleConfig, singleLogger, singleShutdownManager, singleReachedSetFactory, singleOptions);
-      ReachedSet currentReached = createInitialReachedSetForRestart(currentCpa, entryNode, singleReachedSetFactory, singleLogger);
+      ReachedSet currentReached = createInitialReachedSetForRestart(currentCpa, pEntryNode, singleReachedSetFactory, singleLogger);
 
       if (currentAlgorithm instanceof StatisticsProvider) {
         ((StatisticsProvider)currentAlgorithm).collectStatistics(stats.getSubStatistics());
