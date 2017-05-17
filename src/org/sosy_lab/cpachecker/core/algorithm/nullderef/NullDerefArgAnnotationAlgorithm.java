@@ -73,7 +73,9 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 
 @Options(prefix="nullDerefArgAnnotationAlgorithm")
@@ -145,12 +147,46 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
   }
 
+  private static class ParameterDerefAnnotation {
+    public String name;
+    public Boolean isPointer;
+    public Boolean mayBeDereferenced;
+    public Boolean mustBeDereferenced;
+
+    public ParameterDerefAnnotation(String pName, Boolean pIsPointer, Boolean pMayBeDereferenced, Boolean pMustBeDereferenced) {
+      name = pName;
+      isPointer = pIsPointer;
+      mayBeDereferenced = pMayBeDereferenced;
+      mustBeDereferenced = pMustBeDereferenced;
+    }
+
+    @Override
+    public String toString() {
+      if (isPointer) {
+        return "Param *" + name + "(may deref: " + mayBeDereferenced + ", must deref: " + mustBeDereferenced + ")";
+      } else {
+        return "Param " + name;
+      }
+    }
+  }
+
+  private static class FunctionDerefAnnotation {
+    public String name;
+    public ArrayList<ParameterDerefAnnotation> parameterAnnotations;
+
+    public FunctionDerefAnnotation(String pName) {
+      name = pName;
+      parameterAnnotations = new ArrayList<>();
+    }
+  }
+
   private final LogManager logger;
   private final ShutdownNotifier shutdownNotifier;
   private final NullDerefArgAnnotationAlgorithmStatistics stats;
   private final String filename;
   private CFA cfa;
   private final Configuration globalConfig;
+  private Map<String, FunctionDerefAnnotation> functionAnnotations;
 
   private Algorithm currentAlgorithm;
 
@@ -164,6 +200,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     this.filename = pFilename;
     this.cfa = pCfa;
     this.globalConfig = config;
+    this.functionAnnotations = new HashMap<>();
   }
 
   @Override
@@ -171,52 +208,51 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     Collection<FunctionEntryNode> functionEntryNodes = cfa.getAllFunctionHeads();
 
     for (FunctionEntryNode entryNode : functionEntryNodes) {
-      List<? extends AParameterDeclaration> functionParameters = entryNode.getFunctionParameters();
-      ArrayList<String> pointerParameterNames = new ArrayList<>();
-
-      for (AParameterDeclaration parameterDeclaration : functionParameters) {
-        if (parameterDeclaration.getType() instanceof CPointerType) {
-          pointerParameterNames.add(parameterDeclaration.getName());
-        }
-      }
-
-      if (pointerParameterNames.isEmpty()) {
-        continue;
-      }
-
-      cfa = cfa.getCopyWithMainFunction(entryNode);
-
-      try {
-        for (String parameterName : pointerParameterNames) {
-          if (mustDereferenceNull(entryNode, parameterName)) {
-            logger.log(Level.INFO, "Parameter " + parameterName + " of function " + entryNode.getFunctionName() + " must cause NULL dereference");
-          } else {
-            logger.log(Level.INFO, "Parameter " + parameterName + " of function " + entryNode.getFunctionName() + " does not always cause NULL dereference");
-          }
-        }
-
-        if (mayDereferenceNull(entryNode, pointerParameterNames)) {
-          logger.log(Level.INFO, "Function " + entryNode.getFunctionName() + " can always dereference NULL");
-          continue;
-        }
-
-        for (String parameterName : pointerParameterNames) {
-          ArrayList<String> otherPointerParameterNames = new ArrayList<>(pointerParameterNames);
-          otherPointerParameterNames.remove(parameterName);
-
-          if (mayDereferenceNull(entryNode, otherPointerParameterNames)) {
-            logger.log(Level.INFO, "Parameter " + parameterName + " of function " + entryNode.getFunctionName() + " can cause NULL dereference");
-          } else {
-            logger.log(Level.INFO, "Parameter " + parameterName + " of function " + entryNode.getFunctionName() + " can not cause NULL dereference");
-          }
-        }
-      } catch (FileNotFoundException e) {
-        // TODO ???
-        e.printStackTrace();
-      }
+      runFunction(entryNode);
     }
 
     return AlgorithmStatus.UNSOUND_AND_PRECISE;
+  }
+
+  private void runFunction(FunctionEntryNode pEntryNode) {
+    String functionName = pEntryNode.getFunctionName();
+
+    if (functionAnnotations.containsKey(functionName)) {
+      return;
+    }
+
+    FunctionDerefAnnotation functionAnnotation = new FunctionDerefAnnotation(functionName);
+    ArrayList<ParameterDerefAnnotation> parameterAnnotations = functionAnnotation.parameterAnnotations;
+
+    for (AParameterDeclaration parameterDeclaration : pEntryNode.getFunctionParameters()) {
+      Boolean isPointer = parameterDeclaration.getType() instanceof CPointerType;
+      ParameterDerefAnnotation parameterAnnotation = new ParameterDerefAnnotation(
+          parameterDeclaration.getName(), isPointer, false, false);
+      parameterAnnotations.add(parameterAnnotation);
+    }
+
+    cfa = cfa.getCopyWithMainFunction(pEntryNode);
+
+    try {
+      for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
+        if (parameterAnnotation.isPointer) {
+          if (mayDereferenceNull(pEntryNode, parameterAnnotations, parameterAnnotation.name)) {
+            parameterAnnotation.mayBeDereferenced = true;
+          }
+
+          if (mustDereferenceNull(pEntryNode, parameterAnnotation.name)) {
+            parameterAnnotation.mustBeDereferenced = true;
+          }
+
+          logger.log(Level.INFO, "New parameter annotation in function " + functionName + ": " + parameterAnnotation);
+        }
+      }
+
+      functionAnnotations.put(functionName, functionAnnotation);
+    } catch (FileNotFoundException e) {
+      // TODO ???
+      e.printStackTrace();
+    }
   }
 
   @Options
@@ -252,21 +288,24 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
   }
 
-  private String generateNullDereferencePossibilitySpec(List<String> nonNullParameters) throws FileNotFoundException {
+  private String generateNullDereferencePossibilitySpec(List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
     String fileName = "may_deref_tmp.spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MAYDEREF");
     writer.println("INITIAL STATE Init;");
     writer.println("STATE USEALL Init:");
 
-    writer.print("  MATCH ENTRY -> ASSUME {");
+    String assumptions = "";
 
-    for (String nonNullParameter : nonNullParameters) {
-      writer.print(nonNullParameter);
-      writer.print(" != (void *) 0;");
+    for (ParameterDerefAnnotation parameterAnnotation : pParameterAnnotations) {
+      if (parameterAnnotation.isPointer && !parameterAnnotation.name.equals(pNullParameter)) {
+        assumptions = assumptions + parameterAnnotation.name + " != (void *) 0;";
+      }
     }
 
-    writer.println("} GOTO Init;");
+    if (!assumptions.equals("")) {
+      writer.println("  MATCH ENTRY -> ASSUME {" + assumptions + "} GOTO Init;");
+    }
 
     writer.println("  MATCH DEREF {$1} -> SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;");
     writer.println("END AUTOMATON");
@@ -289,8 +328,8 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     return fileName;
   }
 
-  private Boolean mayDereferenceNull(FunctionEntryNode pEntryNode, List<String> pNonNullParameters) throws FileNotFoundException {
-    return runWithSpecification(pEntryNode, generateNullDereferencePossibilitySpec(pNonNullParameters));
+  private Boolean mayDereferenceNull(FunctionEntryNode pEntryNode, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
+    return runWithSpecification(pEntryNode, generateNullDereferencePossibilitySpec(pParameterAnnotations, pNullParameter));
   }
 
   private Boolean mustDereferenceNull(FunctionEntryNode pEntryNode, String pNullParameter) throws FileNotFoundException {
