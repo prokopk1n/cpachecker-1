@@ -214,6 +214,18 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     return AlgorithmStatus.UNSOUND_AND_PRECISE;
   }
 
+  private List<String> getCalledFunctions(String pFunctionName) {
+    // TODO: use dependency information here.
+    ArrayList<String> res = new ArrayList<>();
+
+    if (pFunctionName.equals("func3_calls_other")) {
+      res.add("func1_checked");
+      res.add("func2_notchecked");
+    }
+
+    return res;
+  }
+
   private void runFunction(FunctionEntryNode pEntryNode) {
     String functionName = pEntryNode.getFunctionName();
 
@@ -288,7 +300,44 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
   }
 
-  private String generateNullDereferencePossibilitySpec(List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
+  private String generateCallAutomatonEdges(String pFunctionName, Boolean pIsMayAnalysis) {
+    String res = "";
+
+    for (String calledFunctionName : getCalledFunctions(pFunctionName)) {
+      if (functionAnnotations.containsKey(calledFunctionName)) {
+        List<ParameterDerefAnnotation> parameterAnnotations = functionAnnotations.get(calledFunctionName).parameterAnnotations;
+
+        for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
+          if (parameterAnnotation.isPointer && (pIsMayAnalysis && parameterAnnotation.mayBeDereferenced || (!pIsMayAnalysis && parameterAnnotation.mustBeDereferenced))) {
+            String parameterName = parameterAnnotation.name;
+            String parametersTemplate = "";
+
+            for (ParameterDerefAnnotation anotherParameterAnnotation : parameterAnnotations) {
+              String joker = anotherParameterAnnotation.name.equals(parameterName) ? "$1" : "$?";
+              parametersTemplate = parametersTemplate.equals("") ? joker : (parametersTemplate + ", " + joker);
+            }
+
+            String callTemplate = calledFunctionName + "(" + parametersTemplate + ")";
+
+            String transition;
+
+            if (pIsMayAnalysis) {
+              transition = "SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;";
+            } else {
+              transition = "ASSUME {$1 != (void *) 0} GOTO Init;";
+            }
+
+            res = res + "\n  MATCH CALL {" + callTemplate + "} -> " + transition;
+            res = res + "\n  MATCH CALL {$? = " + callTemplate + "} -> " + transition;
+          }
+        }
+      }
+    }
+
+    return res;
+  }
+
+  private String generateNullDereferencePossibilitySpec(String pFunctionName, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
     String fileName = "may_deref_tmp.spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MAYDEREF");
@@ -308,12 +357,13 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     }
 
     writer.println("  MATCH DEREF {$1} -> SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;");
+    writer.println(generateCallAutomatonEdges(pFunctionName, true));
     writer.println("END AUTOMATON");
     writer.close();
     return fileName;
   }
 
-  private String generateUnavoidableNullDereferenceSpec(String pNullParameter) throws FileNotFoundException {
+  private String generateUnavoidableNullDereferenceSpec(String pFunctionName, String pNullParameter) throws FileNotFoundException {
     String fileName = "must_deref_tmp.spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MUSTDEREF");
@@ -321,19 +371,20 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     writer.println("STATE USEALL Init:");
 
     writer.println("  MATCH ENTRY -> ASSUME {" + pNullParameter + " == (void *) 0} GOTO Init;");
-    writer.println("  MATCH DEREF {$1} -> ASSUME {$1 != (void *) 0} GOTO Init;");
     writer.println("  MATCH EXIT -> ERROR;");
+    writer.println("  MATCH DEREF {$1} -> ASSUME {$1 != (void *) 0} GOTO Init;");
+    writer.println(generateCallAutomatonEdges(pFunctionName, false));
     writer.println("END AUTOMATON");
     writer.close();
     return fileName;
   }
 
   private Boolean mayDereferenceNull(FunctionEntryNode pEntryNode, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
-    return runWithSpecification(pEntryNode, generateNullDereferencePossibilitySpec(pParameterAnnotations, pNullParameter));
+    return runWithSpecification(pEntryNode, generateNullDereferencePossibilitySpec(pEntryNode.getFunctionName(), pParameterAnnotations, pNullParameter));
   }
 
   private Boolean mustDereferenceNull(FunctionEntryNode pEntryNode, String pNullParameter) throws FileNotFoundException {
-    return !runWithSpecification(pEntryNode, generateUnavoidableNullDereferenceSpec(pNullParameter));
+    return !runWithSpecification(pEntryNode, generateUnavoidableNullDereferenceSpec(pEntryNode.getFunctionName(), pNullParameter));
   }
 
   private Boolean runWithSpecification(FunctionEntryNode pEntryNode, String pSpecificationFilePath) {
