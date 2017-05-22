@@ -186,6 +186,8 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   private final String filename;
   private CFA cfa;
   private final Configuration globalConfig;
+  private Map<String, List<String>> functionDependencies;
+  private List<String> functionOrder;
   private Map<String, FunctionDerefAnnotation> functionAnnotations;
 
   private Algorithm currentAlgorithm;
@@ -200,30 +202,48 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     this.filename = pFilename;
     this.cfa = pCfa;
     this.globalConfig = config;
-    this.functionAnnotations = new HashMap<>();
+  }
+
+  private void loadAnnotations() {
+    functionAnnotations = new HashMap<>();
+  }
+
+  private void saveAnnotations() {
+
+  }
+
+  private void loadOrder() {
+    functionOrder = new ArrayList<>();
+    functionOrder.add("func1_checked");
+    functionOrder.add("func2_notchecked");
+    functionOrder.add("func3_calls_other");
+  }
+
+  private void loadDependencies() {
+    functionDependencies = new HashMap<>();
+    functionDependencies.put("func1_checked", new ArrayList<String>());
+    functionDependencies.put("func2_notchecked", new ArrayList<String>());
+    functionDependencies.put("func3_calls_other", new ArrayList<String>());
+    functionDependencies.get("func3_calls_other").add("func1_checked");
+    functionDependencies.get("func3_calls_other").add("func2_notchecked");
   }
 
   @Override
   public AlgorithmStatus run(ReachedSet pReached) throws CPAException, InterruptedException {
-    Collection<FunctionEntryNode> functionEntryNodes = cfa.getAllFunctionHeads();
+    loadAnnotations();
+    loadOrder();
+    loadDependencies();
 
-    for (FunctionEntryNode entryNode : functionEntryNodes) {
-      runFunction(entryNode);
+    for (String functionName : functionOrder) {
+      runFunction(cfa.getFunctionHead(functionName));
     }
 
+    saveAnnotations();
     return AlgorithmStatus.UNSOUND_AND_PRECISE;
   }
 
   private List<String> getCalledFunctions(String pFunctionName) {
-    // TODO: use dependency information here.
-    ArrayList<String> res = new ArrayList<>();
-
-    if (pFunctionName.equals("func3_calls_other")) {
-      res.add("func1_checked");
-      res.add("func2_notchecked");
-    }
-
-    return res;
+    return functionDependencies.get(pFunctionName);
   }
 
   private void runFunction(FunctionEntryNode pEntryNode) {
