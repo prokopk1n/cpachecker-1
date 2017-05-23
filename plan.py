@@ -32,6 +32,51 @@ def build_function_graph(km):
     print("Function graph has {} nodes".format(len(function_graph)))
     return function_graph
 
+def assign_functions_to_object_files(km, function_graph):
+    print("Assigning functions to object files")
+
+    reversed_function_graph = {function: set() for function in function_graph}
+
+    for function, successors in function_graph.items():
+        for successor in successors:
+            reversed_function_graph[successor].add(function)
+
+    function_to_object_file = {}
+    object_file_graph = {}
+
+    for function in function_graph:
+        name, file = function
+        candidates = km["source files"][file]["compiled to"]
+        selected = next(iter(candidates))
+
+        immediately_depending_object_files = []
+
+        for depending_function in reversed_function_graph[function]:
+            if depending_function in function_to_object_file:
+                object_file = function_to_object_file[depending_function]
+                immediately_depending_object_files.append(object_file)
+
+        selected = list(candidates)[0]
+
+        # Object files depending on the function now depend on the selected object file.
+        selected_dependents = object_file_graph.setdefault(selected, set())
+
+        for depending_function in reversed_function_graph[function]:
+            if depending_function in function_to_object_file:
+                object_file = function_to_object_file[depending_function]
+                selected_dependents.add(object_file)
+
+        # Object files that this function depend on now are dependents of the selected object file.
+        for dependent_function in function_graph[function]:
+            if dependent_function in function_to_object_file:
+                object_file = function_to_object_file[dependent_function]
+                object_file_graph.setdefault(object_file, set()).add(selected)
+
+        function_to_object_file[function] = selected
+
+    print("Assigned {} functions to {} object files".format(len(function_graph), len(object_file_graph)))
+    return function_to_object_file, object_file_graph
+
 def visit(graph, visited, postorder, node):
     if node in visited:
         return
@@ -52,74 +97,6 @@ def reverse_postorder(graph):
 
     postorder.reverse()
     return postorder
-
-def order_functions(function_graph):
-    print("Ordering functions")
-    return reverse_postorder(function_graph)
-
-def add_depending_object_files(object_file_graph, depending_object_files, object_file):
-    if object_file in depending_object_files:
-        return
-
-    depending_object_files.add(object_file)
-
-    if object_file in object_file_graph:
-        for depending_object_file in object_file_graph[object_file]:
-            add_depending_object_files(object_file_graph, depending_object_files, depending_object_file)
-
-def assign_functions_to_object_files(km, function_graph, function_order):
-    print("Assigning functions to object files")
-
-    reversed_function_graph = {function: set() for function in function_graph}
-
-    for function, successors in function_graph.items():
-        for successor in successors:
-            reversed_function_graph[successor].add(function)
-
-    function_to_object_file = {}
-    object_file_graph = {}
-
-    for function in function_order:
-        name, file = function
-        candidates = km["source files"][file]["compiled to"]
-
-        # Get object files that depend on this function.
-        depending_object_files = set()
-        immediately_depending_object_files = []
-
-        for depending_function in reversed_function_graph[function]:
-            if depending_function in function_to_object_file:
-                object_file = function_to_object_file[depending_function]
-                add_depending_object_files(object_file_graph, depending_object_files, object_file)
-                immediately_depending_object_files.append(object_file)
-
-        # For each candidate, count how many dependencies it has on dependencies of the function,
-        # this is an estimate of how many cycles selecting it would add.
-        candidate_to_dep_num = {}
-
-        for candidate in candidates:
-            candidate_to_dep_num[candidate] = sum(
-                1 for depending in depending_object_files if depending in object_file_graph and
-                candidate in object_file_graph[depending] and depending != candidate)
-
-        selected = min(candidates, key=lambda candidate: candidate_to_dep_num[candidate])
-
-        # Object files depending on the function now depend on the selected object file.
-        selected_dependents = object_file_graph.setdefault(selected, set())
-
-        for depending in immediately_depending_object_files:
-            selected_dependents.add(depending)
-
-        # Object files that this function depend on now are dependents of the selected object file.
-        for dependent_function in function_graph[function]:
-            if dependent_function in function_to_object_file:
-                object_file = function_to_object_file[dependent_function]
-                object_file_graph.setdefault(object_file, set()).add(selected)
-
-        function_to_object_file[function] = selected
-
-    print("Assigned {} functions to {} object files".format(len(function_graph), len(object_file_graph)))
-    return function_to_object_file, object_file_graph
 
 def order_object_files(object_file_graph):
     print("Ordering object files")
@@ -145,10 +122,13 @@ def order_functions_within_object_files(function_to_object_file, function_graph,
 
     return object_file_to_function_order
 
-def make_plan(object_file_order, object_file_to_function_order):
+def make_plan(function_graph, object_file_order, object_file_to_function_order):
     print("Assembling plan")
 
     plan = []
+    processed_functions = set()
+    calls = 0
+    dropped = 0
 
     for object_file in object_file_order:
         object_file_plan = {
@@ -157,15 +137,30 @@ def make_plan(object_file_order, object_file_to_function_order):
         }
 
         for function in object_file_to_function_order[object_file]:
-            name, file = function
+            called_functions = []
+
+            for called_function in function_graph[function]:
+                calls += 1
+
+                if called_function in processed_functions:
+                    called_functions.append({
+                        "name": called_function[0],
+                        "source file": called_function[1]
+                    })
+                else:
+                    dropped += 1
 
             object_file_plan["functions"].append({
-                "name": name,
-                "source file": file
+                "name": function[0],
+                "source file": function[1],
+                "called functions": called_functions
             })
+
+            processed_functions.add(function)
 
         plan.append(object_file_plan)
 
+    print("Plan drops {} out of {} interprocedural dependencies".format(dropped, calls))
     return plan
 
 def save_plan(plan, path):
@@ -189,11 +184,10 @@ def main():
     args = parser.parse_args()
     km = load_km(args.km)
     function_graph = build_function_graph(km)
-    function_order = order_functions(function_graph)
-    function_to_object_file, object_file_graph = assign_functions_to_object_files(km, function_graph, function_order)
+    function_to_object_file, object_file_graph = assign_functions_to_object_files(km, function_graph)
     object_file_order = order_object_files(object_file_graph)
     object_file_to_function_order = order_functions_within_object_files(function_to_object_file, function_graph, object_file_graph)
-    plan = make_plan(object_file_order, object_file_to_function_order)
+    plan = make_plan(function_graph, object_file_order, object_file_to_function_order)
     save_plan(plan, args.plan)
 
 if __name__ == "__main__":
