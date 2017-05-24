@@ -122,7 +122,7 @@ def order_functions_within_object_files(function_to_object_file, function_graph,
 
     return object_file_to_function_order
 
-def make_plan(function_graph, object_file_order, object_file_to_function_order):
+def make_plan(function_graph, function_to_object_file, object_file_order, object_file_to_function_order):
     print("Assembling plan")
 
     plan = []
@@ -145,14 +145,13 @@ def make_plan(function_graph, object_file_order, object_file_to_function_order):
                 if called_function in processed_functions:
                     called_functions.append({
                         "name": called_function[0],
-                        "source file": called_function[1]
+                        "object file": function_to_object_file[called_function]
                     })
                 else:
                     dropped += 1
 
             object_file_plan["functions"].append({
                 "name": function[0],
-                "source file": function[1],
                 "called functions": called_functions
             })
 
@@ -187,7 +186,7 @@ def main():
     function_to_object_file, object_file_graph = assign_functions_to_object_files(km, function_graph)
     object_file_order = order_object_files(object_file_graph)
     object_file_to_function_order = order_functions_within_object_files(function_to_object_file, function_graph, object_file_graph)
-    plan = make_plan(function_graph, object_file_order, object_file_to_function_order)
+    plan = make_plan(function_graph, function_to_object_file, object_file_order, object_file_to_function_order)
     save_plan(plan, args.plan)
 
 if __name__ == "__main__":
