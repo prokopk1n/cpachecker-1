@@ -446,7 +446,15 @@ class AutomatonTransferRelation extends SingleEdgeTransferRelation {
         // this transition will be taken. copy the variables
         AutomatonTransition t = pair.getFirst();
         List<Map<Integer, AAstNode>> transitionVariablesSeries = pair.getSecond();
-        addFollowStatesForTransition(pState, result, exprArgs, t, transitionVariablesSeries);
+
+        if (t.isDistinct()) {
+          for (Map<Integer, AAstNode> transitionVariablesSerie : transitionVariablesSeries) {
+            List<Map<Integer, AAstNode>> distinctTransitionVariablesSeries = Collections.singletonList(transitionVariablesSerie);
+            addFollowStatesForTransition(pState, result, exprArgs, t, distinctTransitionVariablesSeries);
+          }
+        } else {
+          addFollowStatesForTransition(pState, result, exprArgs, t, transitionVariablesSeries);
+        }
       }
       return result;
     } else {

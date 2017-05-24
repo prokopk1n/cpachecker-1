@@ -248,7 +248,7 @@ public class AutomatonTransition {
       Set<? extends SafetyProperty> pViolatedWhenAssertionFailed) {
 
     this.trigger = checkNotNull(pTrigger);
-    this.distinct = false;
+    this.distinct = pDistinct;
 
     this.shadowCode = (pShadowCode == null)
         ? ImmutableList.<AAstNode>of()

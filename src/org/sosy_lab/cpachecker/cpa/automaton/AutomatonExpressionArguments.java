@@ -240,9 +240,7 @@ public class AutomatonExpressionArguments {
   }
 
   void putTransitionVariablesSeries(List<Map<Integer, AAstNode>> pTransitionVariablesSeries) {
-    for (int i = 0; i < pTransitionVariablesSeries.size(); i++) {
-      this.transitionVariablesSeries.get(i).putAll(pTransitionVariablesSeries.get(i));
-    }
+    this.transitionVariablesSeries = new ArrayList<>(pTransitionVariablesSeries);
   }
 
   void extendTransitionVariablesSeries() {

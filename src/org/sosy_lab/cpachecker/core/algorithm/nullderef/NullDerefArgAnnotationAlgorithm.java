@@ -38,6 +38,7 @@ import org.sosy_lab.common.configuration.InvalidConfigurationException;
 import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.common.io.Path;
+import org.sosy_lab.common.io.Paths;
 import org.sosy_lab.common.log.LogManager;
 import org.sosy_lab.common.time.Timer;
 import org.sosy_lab.cpachecker.cfa.CFA;
@@ -64,10 +65,13 @@ import org.sosy_lab.cpachecker.core.interfaces.StatisticsProvider;
 import org.sosy_lab.cpachecker.core.reachedset.ReachedSet;
 import org.sosy_lab.cpachecker.core.reachedset.ReachedSetFactory;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
+import org.sosy_lab.cpachecker.util.Pair;
 import org.sosy_lab.cpachecker.util.Triple;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
 
+import java.io.BufferedReader;
 import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -180,15 +184,32 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     }
   }
 
+  private static class FunctionPlan {
+    public String name;
+    public ArrayList<Pair<String, String>> dependencies;
+
+    public FunctionPlan(String pName) {
+      name = pName;
+      dependencies = new ArrayList<>();
+    }
+  }
+
   private final LogManager logger;
   private final ShutdownNotifier shutdownNotifier;
   private final NullDerefArgAnnotationAlgorithmStatistics stats;
   private final String filename;
   private CFA cfa;
   private final Configuration globalConfig;
-  private Map<String, List<String>> functionDependencies;
-  private List<String> functionOrder;
+  private String objectFile;
+  private List<FunctionPlan> functionPlans;
   private Map<String, FunctionDerefAnnotation> functionAnnotations;
+  private Map<String, Map<String, FunctionDerefAnnotation>> otherObjectFileFunctionAnnotations;
+
+  @Option(secure = true, name = "plan", description = "Path to file with analysis plan")
+  private String planPath;
+
+  @Option(secure = true, name = "annotationDirectory", description = "Path to annotation directory root")
+  private String annotationDirectory;
 
   private Algorithm currentAlgorithm;
 
@@ -202,85 +223,122 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     this.filename = pFilename;
     this.cfa = pCfa;
     this.globalConfig = config;
+    this.functionAnnotations = new HashMap<>();
+    this.otherObjectFileFunctionAnnotations = new HashMap<>();
   }
 
-  private void loadAnnotations() {
-    functionAnnotations = new HashMap<>();
+  private void loadPlan() {
+    functionPlans = new ArrayList<>();
+
+    try (BufferedReader br = new BufferedReader(new FileReader(planPath))) {
+      String line;
+      FunctionPlan functionPlan = null;
+
+      while ((line = br.readLine()) != null) {
+        String[] parts = line.split(" ");
+
+        if (parts[0].equals("FILE")) {
+          objectFile = parts[1];
+        } else if (parts[0].equals("FUNCTION")) {
+          functionPlan = new FunctionPlan(parts[1]);
+          functionPlans.add(functionPlan);
+        } else if (parts[0].equals("CALLS")) {
+          functionPlan.dependencies.add(Pair.of(parts[1], parts[2]));
+        }
+      }
+  } catch (IOException e) {
+    // TODO: ???
+    e.printStackTrace();
+  }
+
+  }
+
+  private String getAnnotationFilePath(String pObjectFile) {
+    return Paths.get(annotationDirectory, pObjectFile, "deref_annotation.txt").toString();
+  }
+
+  private FunctionDerefAnnotation getFunctionAnnotation(String pDependencyName, String pDependencyObjectFile) {
+    if (pDependencyObjectFile.equals(objectFile)) {
+      return functionAnnotations.get(pDependencyName);
+    } else if (otherObjectFileFunctionAnnotations.containsKey(pDependencyObjectFile)) {
+      return otherObjectFileFunctionAnnotations.get(pDependencyObjectFile).get(pDependencyName);
+    }
+
+    HashMap<String, FunctionDerefAnnotation> otherFunctionAnnotations = new HashMap<>();
+
+    try (BufferedReader br = new BufferedReader(new FileReader(getAnnotationFilePath(pDependencyObjectFile)))) {
+      String line;
+      FunctionDerefAnnotation annotation = null;
+
+      while ((line = br.readLine()) != null) {
+        String[] parts = line.split(" ");
+
+        if (parts[0].equals("FUNCTION")) {
+          annotation = new FunctionDerefAnnotation(parts[1]);
+          otherFunctionAnnotations.put(parts[0], annotation);
+        } else if (parts[0].equals("PARAM")) {
+          annotation.parameterAnnotations.add(new ParameterDerefAnnotation(
+              parts[1], Boolean.parseBoolean(parts[2]),
+              Boolean.parseBoolean(parts[3]), Boolean.parseBoolean(parts[4])));
+        }
+      }
+    } catch (IOException e) {
+      // TODO: ???
+      e.printStackTrace();
+    }
+
+    otherObjectFileFunctionAnnotations.put(pDependencyObjectFile, otherFunctionAnnotations);
+    return otherFunctionAnnotations.get(pDependencyName);
   }
 
   private void saveAnnotations() {
 
   }
 
-  private void loadOrder() {
-    functionOrder = new ArrayList<>();
-    functionOrder.add("func1_checked");
-    functionOrder.add("func2_notchecked");
-    functionOrder.add("func3_calls_other");
-  }
-
-  private void loadDependencies() {
-    functionDependencies = new HashMap<>();
-    functionDependencies.put("func1_checked", new ArrayList<String>());
-    functionDependencies.put("func2_notchecked", new ArrayList<String>());
-    functionDependencies.put("func3_calls_other", new ArrayList<String>());
-    functionDependencies.get("func3_calls_other").add("func1_checked");
-    functionDependencies.get("func3_calls_other").add("func2_notchecked");
-  }
-
   @Override
   public AlgorithmStatus run(ReachedSet pReached) throws CPAException, InterruptedException {
-    loadAnnotations();
-    loadOrder();
-    loadDependencies();
+    loadPlan();
+    logger.log(Level.INFO, "Analysing object file " + objectFile);
 
-    for (String functionName : functionOrder) {
-      runFunction(cfa.getFunctionHead(functionName));
+    for (FunctionPlan plan : functionPlans) {
+      runFunction(plan);
     }
 
     saveAnnotations();
     return AlgorithmStatus.UNSOUND_AND_PRECISE;
   }
 
-  private List<String> getCalledFunctions(String pFunctionName) {
-    return functionDependencies.get(pFunctionName);
-  }
-
-  private void runFunction(FunctionEntryNode pEntryNode) {
-    String functionName = pEntryNode.getFunctionName();
-
-    if (functionAnnotations.containsKey(functionName)) {
-      return;
-    }
-
-    FunctionDerefAnnotation functionAnnotation = new FunctionDerefAnnotation(functionName);
+  private void runFunction(FunctionPlan pPlan) {
+    logger.log(Level.INFO, "Analysing function " + pPlan.name);
+    FunctionEntryNode entryNode = cfa.getFunctionHead(pPlan.name);
+    FunctionDerefAnnotation functionAnnotation = new FunctionDerefAnnotation(pPlan.name);
     ArrayList<ParameterDerefAnnotation> parameterAnnotations = functionAnnotation.parameterAnnotations;
 
-    for (AParameterDeclaration parameterDeclaration : pEntryNode.getFunctionParameters()) {
+    for (AParameterDeclaration parameterDeclaration : entryNode.getFunctionParameters()) {
       Boolean isPointer = parameterDeclaration.getType() instanceof CPointerType;
       ParameterDerefAnnotation parameterAnnotation = new ParameterDerefAnnotation(
           parameterDeclaration.getName(), isPointer, false, false);
       parameterAnnotations.add(parameterAnnotation);
     }
 
-    cfa = cfa.getCopyWithMainFunction(pEntryNode);
+    cfa = cfa.getCopyWithMainFunction(entryNode);
 
     try {
       for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
         if (parameterAnnotation.isPointer) {
-          if (mayDereferenceNull(pEntryNode, parameterAnnotations, parameterAnnotation.name)) {
+          if (mayDereferenceNull(pPlan, parameterAnnotations, parameterAnnotation.name)) {
             parameterAnnotation.mayBeDereferenced = true;
           }
 
-          if (mustDereferenceNull(pEntryNode, parameterAnnotation.name)) {
+          if (mustDereferenceNull(pPlan, parameterAnnotation.name)) {
             parameterAnnotation.mustBeDereferenced = true;
           }
 
-          logger.log(Level.INFO, "New parameter annotation in function " + functionName + ": " + parameterAnnotation);
+          logger.log(Level.INFO, "New parameter annotation in function " + pPlan.name + ": " + parameterAnnotation);
         }
       }
 
-      functionAnnotations.put(functionName, functionAnnotation);
+      functionAnnotations.put(pPlan.name, functionAnnotation);
     } catch (FileNotFoundException e) {
       // TODO ???
       e.printStackTrace();
@@ -320,45 +378,51 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
   }
 
-  private String generateCallAutomatonEdges(String pFunctionName, Boolean pIsMayAnalysis) {
+  private String generateCallAutomatonEdges(FunctionPlan pPlan, Boolean pIsMayAnalysis) {
     String res = "";
 
-    for (String calledFunctionName : getCalledFunctions(pFunctionName)) {
-      if (functionAnnotations.containsKey(calledFunctionName)) {
-        List<ParameterDerefAnnotation> parameterAnnotations = functionAnnotations.get(calledFunctionName).parameterAnnotations;
+    for (Pair<String, String> dependency : pPlan.dependencies) {
+      String dependencyName = dependency.getFirst();
+      String dependencyObjectFile = dependency.getSecond();
+      FunctionDerefAnnotation annotation = getFunctionAnnotation(dependencyName, dependencyObjectFile);
 
-        for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
-          if (parameterAnnotation.isPointer && (pIsMayAnalysis && parameterAnnotation.mayBeDereferenced || (!pIsMayAnalysis && parameterAnnotation.mustBeDereferenced))) {
-            String parameterName = parameterAnnotation.name;
-            String parametersTemplate = "";
+      if (annotation == null) {
+        logger.log(Level.INFO, "Could not find annotation for " + dependencyName + " in " + dependencyObjectFile);
+        continue;
+      }
 
-            for (ParameterDerefAnnotation anotherParameterAnnotation : parameterAnnotations) {
-              String joker = anotherParameterAnnotation.name.equals(parameterName) ? "$1" : "$?";
-              parametersTemplate = parametersTemplate.equals("") ? joker : (parametersTemplate + ", " + joker);
-            }
+      for (ParameterDerefAnnotation parameterAnnotation : annotation.parameterAnnotations) {
+        if (parameterAnnotation.isPointer && (pIsMayAnalysis && parameterAnnotation.mayBeDereferenced || (!pIsMayAnalysis && parameterAnnotation.mustBeDereferenced))) {
+          String parameterName = parameterAnnotation.name;
+          String parametersTemplate = "";
 
-            String callTemplate = calledFunctionName + "(" + parametersTemplate + ")";
-
-            String transition;
-
-            if (pIsMayAnalysis) {
-              transition = "SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;";
-            } else {
-              transition = "ASSUME {$1 != (void *) 0} GOTO Init;";
-            }
-
-            res = res + "\n  MATCH CALL {" + callTemplate + "} -> " + transition;
-            res = res + "\n  MATCH CALL {$? = " + callTemplate + "} -> " + transition;
+          for (ParameterDerefAnnotation anotherParameterAnnotation : annotation.parameterAnnotations) {
+            String joker = anotherParameterAnnotation.name.equals(parameterName) ? "$1" : "$?";
+            parametersTemplate = parametersTemplate.equals("") ? joker : (parametersTemplate + ", " + joker);
           }
+
+          String callTemplate = dependencyName + "(" + parametersTemplate + ")";
+
+          String transition;
+
+          if (pIsMayAnalysis) {
+            transition = "SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;";
+          } else {
+            transition = "ASSUME {$1 != (void *) 0} GOTO Init;";
+          }
+
+          res = res + "\n  MATCH CALL {" + callTemplate + "} -> " + transition;
+          res = res + "\n  MATCH CALL {$? = " + callTemplate + "} -> " + transition;
         }
       }
+
     }
 
     return res;
   }
 
-  private String generateNullDereferencePossibilitySpec(String pFunctionName, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
-    String fileName = "may_deref_tmp.spc";
+  private String generateNullDereferencePossibilitySpec(FunctionPlan pPlan, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
+    String fileName = "may_deref_tmp_" + pNullParameter + ".spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MAYDEREF");
     writer.println("INITIAL STATE Init;");
@@ -376,15 +440,15 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       writer.println("  MATCH ENTRY -> ASSUME {" + assumptions + "} GOTO Init;");
     }
 
-    writer.println("  MATCH DEREF {$1} -> SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;");
-    writer.println(generateCallAutomatonEdges(pFunctionName, true));
+    writer.println("  MATCH DEREF {$1} -> DISTINCT SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;");
+    writer.println(generateCallAutomatonEdges(pPlan, true));
     writer.println("END AUTOMATON");
     writer.close();
     return fileName;
   }
 
-  private String generateUnavoidableNullDereferenceSpec(String pFunctionName, String pNullParameter) throws FileNotFoundException {
-    String fileName = "must_deref_tmp.spc";
+  private String generateUnavoidableNullDereferenceSpec(FunctionPlan pPlan, String pNullParameter) throws FileNotFoundException {
+    String fileName = "must_deref_tmp_" + pNullParameter + ".spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MUSTDEREF");
     writer.println("INITIAL STATE Init;");
@@ -393,23 +457,28 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     writer.println("  MATCH ENTRY -> ASSUME {" + pNullParameter + " == (void *) 0} GOTO Init;");
     writer.println("  MATCH EXIT -> ERROR;");
     writer.println("  MATCH DEREF {$1} -> ASSUME {$1 != (void *) 0} GOTO Init;");
-    writer.println(generateCallAutomatonEdges(pFunctionName, false));
+    writer.println(generateCallAutomatonEdges(pPlan, false));
     writer.println("END AUTOMATON");
     writer.close();
     return fileName;
   }
 
-  private Boolean mayDereferenceNull(FunctionEntryNode pEntryNode, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
-    return runWithSpecification(pEntryNode, generateNullDereferencePossibilitySpec(pEntryNode.getFunctionName(), pParameterAnnotations, pNullParameter));
+  private Boolean mayDereferenceNull(FunctionPlan pPlan, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
+    return runWithSpecification(pPlan,
+        generateNullDereferencePossibilitySpec(pPlan, pParameterAnnotations, pNullParameter),
+        "May analysis for parameter " + pNullParameter);
   }
 
-  private Boolean mustDereferenceNull(FunctionEntryNode pEntryNode, String pNullParameter) throws FileNotFoundException {
-    return !runWithSpecification(pEntryNode, generateUnavoidableNullDereferenceSpec(pEntryNode.getFunctionName(), pNullParameter));
+  private Boolean mustDereferenceNull(FunctionPlan pPlan, String pNullParameter) throws FileNotFoundException {
+    return !runWithSpecification(pPlan,
+        generateUnavoidableNullDereferenceSpec(pPlan, pNullParameter),
+        "Must analysis for parameter " + pNullParameter);
   }
 
-  private Boolean runWithSpecification(FunctionEntryNode pEntryNode, String pSpecificationFilePath) {
+  private Boolean runWithSpecification(FunctionPlan pPlan, String pSpecificationFilePath, String pAnalysisName) {
     stats.totalTime.start();
 
+    FunctionEntryNode entryNode = cfa.getFunctionHead(pPlan.name);
     ShutdownManager singleShutdownManager = ShutdownManager.createWithParent(shutdownNotifier);
 
     try {
@@ -421,7 +490,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       NullDerefArgAnnotationAlgorithmOptions singleOptions = new NullDerefArgAnnotationAlgorithmOptions();
       singleConfig.inject(singleOptions);
 
-      LogManager singleLogger = logger.withComponentName("Analysis of NULL dereference possibility");
+      LogManager singleLogger = logger.withComponentName(pAnalysisName);
 
       ResourceLimitChecker singleLimits = ResourceLimitChecker.fromConfiguration(singleConfig, singleLogger, singleShutdownManager);
       singleLimits.start();
@@ -429,7 +498,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       ReachedSetFactory singleReachedSetFactory = new ReachedSetFactory(singleConfig);
       ConfigurableProgramAnalysis currentCpa = createCPA(singleReachedSetFactory, singleConfig, singleLogger, singleShutdownManager.getNotifier(), stats);
       Algorithm currentAlgorithm = createAlgorithm(currentCpa, singleConfig, singleLogger, singleShutdownManager, singleReachedSetFactory, singleOptions);
-      ReachedSet currentReached = createInitialReachedSetForRestart(currentCpa, pEntryNode, singleReachedSetFactory, singleLogger);
+      ReachedSet currentReached = createInitialReachedSetForRestart(currentCpa, entryNode, singleReachedSetFactory, singleLogger);
 
       if (currentAlgorithm instanceof StatisticsProvider) {
         ((StatisticsProvider)currentAlgorithm).collectStatistics(stats.getSubStatistics());
