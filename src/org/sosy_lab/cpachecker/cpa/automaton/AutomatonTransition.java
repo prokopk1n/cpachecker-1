@@ -56,6 +56,7 @@ public class AutomatonTransition {
   // The order of triggers, assertions and (more importantly) actions is preserved by the parser.
 
   private final AutomatonBoolExpr trigger;
+  private final Boolean distinct;
   private final AutomatonBoolExpr assertion;
 
   private final boolean assumptionTruth;
@@ -130,6 +131,24 @@ public class AutomatonTransition {
         ImmutableSet.<SafetyProperty>of());
   }
 
+  public AutomatonTransition(AutomatonBoolExpr pTrigger,
+      Boolean pDistinct,
+      List<AutomatonBoolExpr> pAssertions,
+      List<AStatement> pAssumption,
+      boolean pAssumeTruth,
+      @Nullable List<AAstNode> pShadowCode,
+      List<AutomatonAction> pActions,
+      AutomatonInternalState pFollowState) {
+
+    this(pTrigger, pDistinct, pAssertions,
+        pAssumption, pAssumeTruth,
+        pShadowCode,
+        pActions,
+        pFollowState.getName(), pFollowState,
+        ImmutableSet.<SafetyProperty>of(),
+        ImmutableSet.<SafetyProperty>of());
+  }
+
   AutomatonTransition(AutomatonBoolExpr pTrigger,
       List<AutomatonBoolExpr> pAssertions,
       @Nullable List<AStatement> pAssumption,
@@ -139,6 +158,23 @@ public class AutomatonTransition {
       String pFollowStateName) {
 
     this(pTrigger, pAssertions, pAssumption,
+        pAssumeTruth,
+        pShadowCode,
+        pActions, pFollowStateName, null,
+        ImmutableSet.<SafetyProperty>of(),
+        ImmutableSet.<SafetyProperty>of());
+  }
+
+  AutomatonTransition(AutomatonBoolExpr pTrigger,
+      Boolean pDistinct,
+      List<AutomatonBoolExpr> pAssertions,
+      @Nullable List<AStatement> pAssumption,
+      boolean pAssumeTruth,
+      @Nullable List<AAstNode> pShadowCode,
+      List<AutomatonAction> pActions,
+      String pFollowStateName) {
+
+    this(pTrigger, pDistinct, pAssertions, pAssumption,
         pAssumeTruth,
         pShadowCode,
         pActions, pFollowStateName, null,
@@ -165,6 +201,42 @@ public class AutomatonTransition {
   }
 
   public AutomatonTransition(AutomatonBoolExpr pTrigger,
+      Boolean pDistinct,
+      List<AutomatonBoolExpr> pAssertions,
+      List<AStatement> pAssumption,
+      boolean pAssumeTruth,
+      List<AAstNode> pShadowCode,
+      List<AutomatonAction> pActions,
+      AutomatonInternalState pFollowState,
+      Set<SafetyProperty> pViolatedWhenEnteringTarget) {
+
+    this(pTrigger, pDistinct, pAssertions,
+        pAssumption, pAssumeTruth,
+        pShadowCode,
+        pActions,
+        pFollowState.getName(), pFollowState,
+        Preconditions.checkNotNull(pViolatedWhenEnteringTarget),
+        ImmutableSet.<SafetyProperty>of());
+  }
+
+  public AutomatonTransition(AutomatonBoolExpr pTrigger,
+      List<AutomatonBoolExpr> pAssertions,
+      @Nullable List<AStatement> pAssumption,
+      boolean pAssumeTruth,
+      @Nullable List<AAstNode> pShadowCode,
+      List<AutomatonAction> pActions,
+      String pFollowStateName,
+      @Nullable AutomatonInternalState pFollowState,
+      Set<? extends SafetyProperty> pViolatedWhenEnteringTarget,
+      Set<? extends SafetyProperty> pViolatedWhenAssertionFailed) {
+    this(pTrigger,
+        false, pAssertions, pAssumption, pAssumeTruth,
+        pShadowCode, pActions, pFollowStateName, pFollowState, pViolatedWhenEnteringTarget,
+        pViolatedWhenAssertionFailed);
+  }
+
+  public AutomatonTransition(AutomatonBoolExpr pTrigger,
+      Boolean pDistinct,
       List<AutomatonBoolExpr> pAssertions,
       @Nullable List<AStatement> pAssumption,
       boolean pAssumeTruth,
@@ -176,6 +248,7 @@ public class AutomatonTransition {
       Set<? extends SafetyProperty> pViolatedWhenAssertionFailed) {
 
     this.trigger = checkNotNull(pTrigger);
+    this.distinct = false;
 
     this.shadowCode = (pShadowCode == null)
         ? ImmutableList.<AAstNode>of()
@@ -215,6 +288,10 @@ public class AutomatonTransition {
       }
       this.assertion = lAssertion;
     }
+  }
+
+  public Boolean isDistinct() {
+    return distinct;
   }
 
   public ImmutableList<AutomatonAction> getActions() {
