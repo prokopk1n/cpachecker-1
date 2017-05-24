@@ -276,7 +276,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
         if (parts[0].equals("FUNCTION")) {
           annotation = new FunctionDerefAnnotation(parts[1]);
-          otherFunctionAnnotations.put(parts[0], annotation);
+          otherFunctionAnnotations.put(parts[1], annotation);
         } else if (parts[0].equals("PARAM")) {
           annotation.parameterAnnotations.add(new ParameterDerefAnnotation(
               parts[1], Boolean.parseBoolean(parts[2]),
