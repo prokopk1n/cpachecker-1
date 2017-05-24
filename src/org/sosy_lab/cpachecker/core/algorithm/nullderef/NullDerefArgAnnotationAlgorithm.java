@@ -441,7 +441,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   }
 
   private String generateNullDereferencePossibilitySpec(FunctionPlan pPlan, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
-    String fileName = "may_deref_tmp_" + pNullParameter + ".spc";
+    String fileName = "may_deref_tmp.spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MAYDEREF");
     writer.println("INITIAL STATE Init;");
@@ -467,7 +467,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   }
 
   private String generateUnavoidableNullDereferenceSpec(FunctionPlan pPlan, String pNullParameter) throws FileNotFoundException {
-    String fileName = "must_deref_tmp_" + pNullParameter + ".spc";
+    String fileName = "must_deref_tmp.spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MUSTDEREF");
     writer.println("INITIAL STATE Init;");
