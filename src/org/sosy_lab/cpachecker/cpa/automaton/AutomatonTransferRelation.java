@@ -29,7 +29,6 @@ import static com.google.common.collect.FluentIterable.from;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -239,6 +238,66 @@ class AutomatonTransferRelation extends SingleEdgeTransferRelation {
     }
   }
 
+  private void addFollowStatesForTransition(AutomatonState pState,
+      Collection<AutomatonState> pResult, AutomatonExpressionArguments pExprArgs,
+      AutomatonTransition pTransition, List<Map<Integer, AAstNode>> pTransitionVariablesSeries) throws CPATransferException {
+    boolean checkFeasibility = false;
+
+    actionTime.start();
+    Map<String, AutomatonVariable> newVars = deepCloneVars(pState.getVars());
+    pExprArgs.setAutomatonVariables(newVars);
+    pExprArgs.putTransitionVariablesSeries(pTransitionVariablesSeries);
+
+    for (AutomatonAction action : pTransition.getActions()) {
+      ResultValue<?> res = action.eval(pExprArgs);
+      if (res.canNotEvaluate()) {
+        pExprArgs.getLogger().log(Level.SEVERE, res.getFailureMessage() + " in " + res.getFailureOrigin());
+      }
+
+      if (action instanceof AutomatonAction.CheckFeasibility) {
+        checkFeasibility = true;
+      }
+    }
+    if (pExprArgs.getLogMessage() != null && pExprArgs.getLogMessage().length() > 0) {
+      pExprArgs.getLogger().log(Level.INFO, pExprArgs.getLogMessage());
+      pExprArgs.clearLogMessage();
+    }
+    actionTime.stop();
+
+    Map<SafetyProperty, ResultValue<?>> violatedProperties = Maps.newHashMap();
+    if (pTransition.getFollowState().isTarget()) {
+      Preconditions.checkState(!pTransition.getViolatedWhenEnteringTarget().isEmpty());
+      for (SafetyProperty p : pTransition.getViolatedWhenEnteringTarget()) {
+        violatedProperties.put(p, p.instantiate(pExprArgs));
+      }
+    }
+
+    // The assumptions might reference to the current automata variables!
+    //  --> We have to instantiate them!
+    ImmutableList<Pair<AStatement, Boolean>> symbolicAssumes = pTransition.getAssumptionWithTruth();
+    pExprArgs.setCFA(cpa.getCfa());
+    ImmutableList<Pair<AStatement, Boolean>> instantiatedAssumes = pExprArgs.instantiateAssumptions(symbolicAssumes);
+    List<AAstNode> instantiatedShadowCode = pExprArgs.instantiateCode(pTransition.getShadowCode());
+
+    // Create the new successor state of the automaton state
+    AutomatonState lSuccessor = AutomatonState.automatonStateFactory(
+        newVars,
+        pTransition.getFollowState(),
+        cpa,
+        instantiatedAssumes,
+        instantiatedShadowCode,
+        pState.getMatches() + 1,
+        pState.getFailedMatches(),
+        checkFeasibility,
+        violatedProperties);
+
+    if (!(lSuccessor instanceof AutomatonState.BOTTOM)) {
+      pResult.add(lSuccessor);
+    } else {
+      // add nothing
+    }
+  }
+
   /**
    * Returns the <code>AutomatonStates</code> that follow this
    *  state in the ControlAutomatonCPA.
@@ -387,62 +446,7 @@ class AutomatonTransferRelation extends SingleEdgeTransferRelation {
         // this transition will be taken. copy the variables
         AutomatonTransition t = pair.getFirst();
         List<Map<Integer, AAstNode>> transitionVariablesSeries = pair.getSecond();
-
-        boolean checkFeasibility = false;
-
-        actionTime.start();
-        Map<String, AutomatonVariable> newVars = deepCloneVars(pState.getVars());
-        exprArgs.setAutomatonVariables(newVars);
-        exprArgs.putTransitionVariablesSeries(transitionVariablesSeries);
-
-        for (AutomatonAction action : t.getActions()) {
-          ResultValue<?> res = action.eval(exprArgs);
-          if (res.canNotEvaluate()) {
-            exprArgs.getLogger().log(Level.SEVERE, res.getFailureMessage() + " in " + res.getFailureOrigin());
-          }
-
-          if (action instanceof AutomatonAction.CheckFeasibility) {
-            checkFeasibility = true;
-          }
-        }
-        if (exprArgs.getLogMessage() != null && exprArgs.getLogMessage().length() > 0) {
-          exprArgs.getLogger().log(Level.INFO, exprArgs.getLogMessage());
-          exprArgs.clearLogMessage();
-        }
-        actionTime.stop();
-
-        Map<SafetyProperty, ResultValue<?>> violatedProperties = Maps.newHashMap();
-        if (t.getFollowState().isTarget()) {
-          Preconditions.checkState(!t.getViolatedWhenEnteringTarget().isEmpty());
-          for (SafetyProperty p : t.getViolatedWhenEnteringTarget()) {
-            violatedProperties.put(p, p.instantiate(exprArgs));
-          }
-        }
-
-        // The assumptions might reference to the current automata variables!
-        //  --> We have to instantiate them!
-        ImmutableList<Pair<AStatement, Boolean>> symbolicAssumes = t.getAssumptionWithTruth();
-        exprArgs.setCFA(cpa.getCfa());
-        ImmutableList<Pair<AStatement, Boolean>> instantiatedAssumes = exprArgs.instantiateAssumptions(symbolicAssumes);
-        List<AAstNode> instantiatedShadowCode = exprArgs.instantiateCode(t.getShadowCode());
-
-        // Create the new successor state of the automaton state
-        AutomatonState lSuccessor = AutomatonState.automatonStateFactory(
-            newVars,
-            t.getFollowState(),
-            cpa,
-            instantiatedAssumes,
-            instantiatedShadowCode,
-            pState.getMatches() + 1,
-            pState.getFailedMatches(),
-            checkFeasibility,
-            violatedProperties);
-
-        if (!(lSuccessor instanceof AutomatonState.BOTTOM)) {
-          result.add(lSuccessor);
-        } else {
-          // add nothing
-        }
+        addFollowStatesForTransition(pState, result, exprArgs, t, transitionVariablesSeries);
       }
       return result;
     } else {
