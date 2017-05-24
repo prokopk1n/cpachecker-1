@@ -77,11 +77,6 @@ public class AutomatonExpressionArguments {
   private CFA cfa;
 
   /**
-   * A cache for identifiers containing {@code CProblemType}s.
-   */
-  private static Map<String, CIdExpression> problemTypeExpressionCache = new HashMap<>();
-
-  /**
    * In this String all print messages of the Transition are collected.
    * They are logged (INFO-level) together at the end of the transition actions.
    */
@@ -322,11 +317,6 @@ public class AutomatonExpressionArguments {
                     + "\"AutomatonExpressionArguments.setCFA(CFA)\" before calling the method "
                     + "\"substituteJokerVariables(CAstNode)\"!");
 
-            if (problemTypeExpressionCache.containsKey(exp.toASTString())) {
-              // Use the cache if possible in order to avoid CFA traversal
-              return problemTypeExpressionCache.get(exp.toASTString());
-            }
-
             final SearchDeclarationVisitor visitor =
                 new SearchDeclarationVisitor(exp.toASTString());
             CFATraversal.dfs().traverseOnce(cfa.getMainFunction(), visitor);
@@ -344,7 +334,6 @@ public class AutomatonExpressionArguments {
                 newDeclaration.getType(),
                 exp.toASTString(),
                 exp.getDeclaration() == null ? newDeclaration : exp.getDeclaration());
-            problemTypeExpressionCache.put(exp.toASTString(), newExp);
             return newExp;
           }
         }
