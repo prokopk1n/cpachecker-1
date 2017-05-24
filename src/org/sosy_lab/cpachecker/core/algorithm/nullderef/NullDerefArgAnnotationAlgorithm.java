@@ -70,6 +70,7 @@ import org.sosy_lab.cpachecker.util.Triple;
 import org.sosy_lab.cpachecker.util.resources.ResourceLimitChecker;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
@@ -283,8 +284,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
         }
       }
     } catch (IOException e) {
-      // TODO: ???
-      e.printStackTrace();
+      logger.log(Level.INFO, "Could not read annotations from " + getAnnotationFilePath(pDependencyObjectFile));
     }
 
     otherObjectFileFunctionAnnotations.put(pDependencyObjectFile, otherFunctionAnnotations);
@@ -292,7 +292,26 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   }
 
   private void saveAnnotations() {
+    String fileName = getAnnotationFilePath(objectFile);
+    (new File(fileName)).getParentFile().mkdirs();
 
+    try (PrintWriter writer = new PrintWriter(fileName)) {
+      writer.println("FILE " + objectFile);
+
+      for (FunctionDerefAnnotation functionAnnotation : functionAnnotations.values()) {
+        writer.println("FUNCTION " + functionAnnotation.name);
+
+        for (ParameterDerefAnnotation parameterAnnotation: functionAnnotation.parameterAnnotations) {
+          writer.println("PARAM " + parameterAnnotation.name + " " + parameterAnnotation.isPointer +
+              " " + parameterAnnotation.mayBeDereferenced + " " + parameterAnnotation.mustBeDereferenced);
+        }
+      }
+
+      writer.close();
+    } catch (FileNotFoundException e) {
+      // TODO: ???
+      e.printStackTrace();
+    }
   }
 
   @Override
