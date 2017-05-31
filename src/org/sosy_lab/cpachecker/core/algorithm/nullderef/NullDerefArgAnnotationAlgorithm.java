@@ -413,31 +413,47 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
         continue;
       }
 
-      for (ParameterDerefAnnotation parameterAnnotation : annotation.parameterAnnotations) {
-        if (parameterAnnotation.isPointer && (pIsMayAnalysis && parameterAnnotation.mayBeDereferenced || (!pIsMayAnalysis && parameterAnnotation.mustBeDereferenced))) {
-          String parameterName = parameterAnnotation.name;
-          String parametersTemplate = "";
+      if (pIsMayAnalysis) {
+        for (ParameterDerefAnnotation parameterAnnotation : annotation.parameterAnnotations) {
+          if (parameterAnnotation.isPointer && parameterAnnotation.mayBeDereferenced) {
+            String parameterName = parameterAnnotation.name;
+            String parametersTemplate = "";
 
-          for (ParameterDerefAnnotation anotherParameterAnnotation : annotation.parameterAnnotations) {
-            String joker = anotherParameterAnnotation.name.equals(parameterName) ? "$1" : "$?";
-            parametersTemplate = parametersTemplate.equals("") ? joker : (parametersTemplate + ", " + joker);
+            for (ParameterDerefAnnotation anotherParameterAnnotation : annotation.parameterAnnotations) {
+              String joker = anotherParameterAnnotation.name.equals(parameterName) ? "$1" : "$?";
+              parametersTemplate = parametersTemplate.equals("") ? joker : (parametersTemplate + ", " + joker);
+            }
+
+            String callTemplate = dependencyName + "(" + parametersTemplate + ")";
+            res = res + "\n  MATCH CALL {" + callTemplate + "} -> SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;";
+            res = res + "\n  MATCH CALL {$? = " + callTemplate + "} -> SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;";
           }
+        }
+      } else {
+        String assumptions = "";
+        String parametersTemplate = "";
+        int nextNumberedJoker = 1;
 
-          String callTemplate = dependencyName + "(" + parametersTemplate + ")";
+        for (ParameterDerefAnnotation parameterAnnotation : annotation.parameterAnnotations) {
+          String joker;
 
-          String transition;
-
-          if (pIsMayAnalysis) {
-            transition = "SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;";
+          if (parameterAnnotation.isPointer && parameterAnnotation.mustBeDereferenced) {
+            joker = "$" + nextNumberedJoker;
+            nextNumberedJoker++;
+            assumptions = assumptions + joker + " != (void *) 0;";
           } else {
-            transition = "ASSUME {$1 != (void *) 0} GOTO Init;";
+            joker = "$?";
           }
 
-          res = res + "\n  MATCH CALL {" + callTemplate + "} -> " + transition;
-          res = res + "\n  MATCH CALL {$? = " + callTemplate + "} -> " + transition;
+          parametersTemplate = parametersTemplate.equals("") ? joker : (parametersTemplate + ", " + joker);
+        }
+
+        if (!assumptions.equals("")) {
+          String callTemplate = dependencyName + "(" + parametersTemplate + ")";
+          res = res + "\n  MATCH CALL {" + callTemplate + "} -> ASSUME {" + assumptions + "} GOTO Init;";
+          res = res + "\n  MATCH CALL {$? = " + callTemplate + "} -> ASSUME {" + assumptions + "} GOTO Init;";
         }
       }
-
     }
 
     return res;
