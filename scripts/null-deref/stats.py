@@ -1,0 +1,104 @@
+import argparse
+import json
+
+def load_plan(path):
+    print("Loading plan from {}".format(path))
+
+    with open(path) as f:
+        return json.load(f)
+
+def load_annotations(path):
+    print("Loading annotations from {}".format(path))
+
+    with open(path) as f:
+        return json.load(f)
+
+def get_plan_stats(plan):
+    stats = {
+        "files": set(),
+        "functions": 0
+    }
+
+    for object_file_plan in plan:
+        stats["files"].add(object_file_plan["object file"])
+        stats["functions"] += len(object_file_plan["functions"])
+
+    return stats
+
+def get_annotations_stats(annotations):
+    stats = {
+        "files": set(),
+        "functions": 0,
+        "parameters": 0,
+        "pointers": 0,
+        "no deref": 0,
+        "may deref": 0,
+        "must deref": 0
+    }
+
+    for name, source_files in annotations.items():
+        for source_file, function in source_files.items():
+            stats["functions"] += 1
+            stats["files"].add(function["object file"])
+
+            for parameter in function["params"]:
+                stats["parameters"] += 1
+
+                if parameter["is pointer"]:
+                    stats["pointers"] += 1
+
+                    if parameter["must deref"]:
+                        stats["must deref"] += 1
+                    elif parameter["may deref"]:
+                        stats["may deref"] += 1
+                    else:
+                        stats["no deref"] += 1
+
+    return stats
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Annotation stats analyser for null deref annotation algorithm")
+
+    parser.add_argument(
+        "plan",
+        help="Path to a JSON file containing plan.")
+
+    parser.add_argument(
+        "annotations",
+        help="Path to a JSON file with collected annotations.")
+
+    args = parser.parse_args()
+    plan = load_plan(args.plan)
+    annotations = load_annotations(args.annotations)
+    plan_stats = get_plan_stats(plan)
+    annotations_stats = get_annotations_stats(annotations)
+
+    print("Analysed {} functions in {} files out of {} functions in {} files".format(
+        annotations_stats["functions"], len(annotations_stats["files"]),
+        plan_stats["functions"], len(plan_stats["files"])))
+    print("{} out of {} parameters are pointers".format(
+        annotations_stats["pointers"], annotations_stats["parameters"]))
+    print("{} pointer parameters always cause NULL dereference when NULL".format(
+        annotations_stats["must deref"]))
+    print("{} pointer parameters may cause NULL dereference when NULL".format(
+        annotations_stats["may deref"]))
+    print("{} pointer parameters can not cause NULL dereference when NULL".format(
+        annotations_stats["no deref"]))
+
+    bad_files = sorted(plan_stats["files"] - annotations_stats["files"])
+
+    if len(bad_files) > 0:
+        print()
+        print("Files that could not be analysed:")
+
+        num_functions = {}
+
+        for file in plan:
+            num_functions[file["object file"]] = len(file["functions"])
+
+        for file in bad_files:
+            print("  {} - {} functions".format(file, num_functions[file]))
+
+if __name__ == "__main__":
+    main()
