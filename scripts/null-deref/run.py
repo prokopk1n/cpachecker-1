@@ -21,7 +21,7 @@ def write_object_file_plan(object_file_plan, object_file_plan_path):
             for called_function in function["called functions"]:
                 f.write("CALLS {} {}\n".format(called_function["name"], called_function["object file"]))
 
-def run(cpachecker, sources, annotations, plan, distinct_tmp_specs):
+def run(cpachecker, sources, annotations, plan, debug):
     print("Running plan")
     total_start = time.time()
 
@@ -50,14 +50,19 @@ def run(cpachecker, sources, annotations, plan, distinct_tmp_specs):
             "-setprop", "parser.usePreprocessor=true"
         ]
 
-        if distinct_tmp_specs:
-            args.extend(["-setprop", "nullDerefArgAnnotationAlgorithm.distinctTempSpecNames=true"])
+        if debug:
+            args.extend([
+                "-setprop", "nullDerefArgAnnotationAlgorithm.distinctTempSpecNames=true",
+                "-setprop", "log.consoleLevel=ALL",
+                "-setprop", "log.consoleExclude=CONFIG"
+            ])
 
         os.makedirs(log_dir)
         log_path = os.path.join(log_dir, "log.txt")
 
         with open(log_path, "w") as f:
             f.write("RUN {}\n\n".format(" ".join(args)))
+            f.flush()
 
             start = time.time()
             completed = subprocess.run(args, cwd=cpachecker, stdout=f, stderr=subprocess.STDOUT, universal_newlines=True)
@@ -102,15 +107,15 @@ def main():
         help="Path to annotation directory, it will be created if missing.")
 
     parser.add_argument(
-        "--distinct-tmp-specs",
-        help="Use distinct names for temporary spec files.",
+        "--debug",
+        help="Use distinct names for temporary spec files and make more logs.",
         action="store_true",
         default=False
     )
 
     args = parser.parse_args()
     plan = load_plan(args.plan)
-    run(args.cpachecker, args.sources, args.annotations, plan, args.distinct_tmp_specs)
+    run(args.cpachecker, args.sources, args.annotations, plan, args.debug)
 
 if __name__ == "__main__":
     main()
