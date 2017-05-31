@@ -29,47 +29,51 @@ def run(cpachecker, sources, annotations, plan):
     failures = 0
     errors = 0
 
-    with open("cpachecker_log.txt", "w") as f:
-        for i, object_file_plan in enumerate(plan):
-            name = object_file_plan["object file"]
-            path = os.path.join(sources, name, os.path.basename(name))
-            sys.stdout.write("Analysing object file #{}/{}: {} ({} functions)".format(i + 1, len(plan), name, len(object_file_plan["functions"])))
-            sys.stdout.flush()
+    for i, object_file_plan in enumerate(plan):
+        name = object_file_plan["object file"]
+        path = os.path.join(sources, name, os.path.basename(name))
+        log_dir = os.path.join(os.path.abspath(annotations), name)
+        sys.stdout.write("Analysing object file #{}/{}: {} ({} functions)".format(i + 1, len(plan), name, len(object_file_plan["functions"])))
+        sys.stdout.flush()
 
-            object_file_plan_path = "object_file_plan.txt"
-            write_object_file_plan(object_file_plan, object_file_plan_path)
+        object_file_plan_path = "object_file_plan.txt"
+        write_object_file_plan(object_file_plan, object_file_plan_path)
 
-            args = [
-                "scripts/cpa.sh",
-                "-config", "config/ldv-deref.properties",
-                "-spec", "config/specification/default.spc",
-                os.path.abspath(path),
-                "-setprop", "nullDerefArgAnnotationAlgorithm.annotationDirectory={}".format(os.path.abspath(annotations)),
-                "-setprop", "analysis.entryFunction={}".format(object_file_plan["functions"][0]["name"]),
-                "-setprop", "nullDerefArgAnnotationAlgorithm.plan={}".format(os.path.abspath(object_file_plan_path)),
-                "-setprop", "parser.usePreprocessor=true"
-            ]
+        args = [
+            "scripts/cpa.sh",
+            "-config", "config/ldv-deref.properties",
+            "-spec", "config/specification/default.spc",
+            os.path.abspath(path),
+            "-setprop", "nullDerefArgAnnotationAlgorithm.annotationDirectory={}".format(os.path.abspath(annotations)),
+            "-setprop", "analysis.entryFunction={}".format(object_file_plan["functions"][0]["name"]),
+            "-setprop", "nullDerefArgAnnotationAlgorithm.plan={}".format(os.path.abspath(object_file_plan_path)),
+            "-setprop", "parser.usePreprocessor=true"
+        ]
 
+        os.makedirs(log_dir)
+        log_path = os.path.join(log_dir, "log.txt")
+
+        with open(log_path, "w") as f:
             f.write("RUN {}\n\n".format(" ".join(args)))
 
             start = time.time()
-            completed = subprocess.run(args, cwd=cpachecker, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            completed = subprocess.run(args, cwd=cpachecker, stdout=f, stderr=subprocess.STDOUT, universal_newlines=True)
             finish = time.time()
 
-            f.write(completed.stdout)
-            f.write("\n")
+        with open(log_path) as f:
+            output = f.read()
 
-            if completed.returncode != 0:
-                status = "error"
-                errors += 1
-            elif "Verification result: UNKNOWN, incomplete analysis." in completed.stdout:
-                status = "success"
-                successes += 1
-            else:
-                status = "failure"
-                failures += 1
+        if completed.returncode != 0:
+            status = "error"
+            errors += 1
+        elif "Verification result: UNKNOWN, incomplete analysis." in output:
+            status = "success"
+            successes += 1
+        else:
+            status = "failure"
+            failures += 1
 
-            sys.stdout.write(" - {}, took {:.2f} seconds\n".format(status, finish - start))
+        sys.stdout.write(" - {}, took {:.2f} seconds\n".format(status, finish - start))
 
     total_finish = time.time()
     print("Completed - {} successes, {} failures, {} errors, took {:.2f} seconds".format(successes, failures, errors, total_finish - total_start))
