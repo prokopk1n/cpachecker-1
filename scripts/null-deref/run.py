@@ -21,7 +21,7 @@ def write_object_file_plan(object_file_plan, object_file_plan_path):
             for called_function in function["called functions"]:
                 f.write("CALLS {} {}\n".format(called_function["name"], called_function["object file"]))
 
-def run(cpachecker, sources, annotations, plan):
+def run(cpachecker, sources, annotations, plan, distinct_tmp_specs):
     print("Running plan")
     total_start = time.time()
 
@@ -49,6 +49,9 @@ def run(cpachecker, sources, annotations, plan):
             "-setprop", "nullDerefArgAnnotationAlgorithm.plan={}".format(os.path.abspath(object_file_plan_path)),
             "-setprop", "parser.usePreprocessor=true"
         ]
+
+        if distinct_tmp_specs:
+            args.extend(["-setprop", "nullDerefArgAnnotationAlgorithm.distinctTempSpecNames=true"])
 
         os.makedirs(log_dir)
         log_path = os.path.join(log_dir, "log.txt")
@@ -98,9 +101,16 @@ def main():
         "annotations",
         help="Path to annotation directory, it will be created if missing.")
 
+    parser.add_argument(
+        "--distinct-tmp-specs",
+        help="Use distinct names for temporary spec files.",
+        action="store_true",
+        default=False
+    )
+
     args = parser.parse_args()
     plan = load_plan(args.plan)
-    run(args.cpachecker, args.sources, args.annotations, plan)
+    run(args.cpachecker, args.sources, args.annotations, plan, args.distinct_tmp_specs)
 
 if __name__ == "__main__":
     main()

@@ -212,6 +212,9 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   @Option(secure = true, name = "annotationDirectory", description = "Path to annotation directory root")
   private String annotationDirectory;
 
+  @Option(secure = true, name = "distinctTempSpecNames", description = "Use distinct names for all temporary spec files")
+  private boolean distinctTempSpecNames = false;
+
   private Algorithm currentAlgorithm;
 
   public NullDerefArgAnnotationAlgorithm(Configuration config, LogManager pLogger,
@@ -441,7 +444,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   }
 
   private String generateNullDereferencePossibilitySpec(FunctionPlan pPlan, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
-    String fileName = "may_deref_tmp.spc";
+    String fileName = distinctTempSpecNames ? ("may_" + pPlan.name + "_" + pNullParameter + "_tmp.spc") : "may_tmp.spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MAYDEREF");
     writer.println("INITIAL STATE Init;");
@@ -467,7 +470,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   }
 
   private String generateUnavoidableNullDereferenceSpec(FunctionPlan pPlan, String pNullParameter) throws FileNotFoundException {
-    String fileName = "must_deref_tmp.spc";
+    String fileName = distinctTempSpecNames ? ("must_" + pPlan.name + "_" + pNullParameter + "_tmp.spc") : "must_tmp.spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MUSTDEREF");
     writer.println("INITIAL STATE Init;");
