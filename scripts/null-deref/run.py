@@ -68,13 +68,14 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log):
                 f.flush()
 
                 start = time.time()
-                completed = subprocess.run(args, cwd=cpachecker, stdout=f, stderr=subprocess.STDOUT, universal_newlines=True)
+                popen = subprocess.Popen(args, cwd=cpachecker, stdout=f, stderr=subprocess.STDOUT, universal_newlines=True)
+                popen.wait()
                 finish = time.time()
 
             with open(log_path) as f:
                 output = f.read()
 
-            if completed.returncode != 0:
+            if popen.returncode != 0:
                 status = "error"
                 errors += 1
             elif "Verification result: UNKNOWN, incomplete analysis." in output:
