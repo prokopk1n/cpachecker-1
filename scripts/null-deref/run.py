@@ -21,7 +21,7 @@ def write_object_file_plan(object_file_plan, object_file_plan_path):
             for called_function in function["called functions"]:
                 f.write("CALLS {} {}\n".format(called_function["name"], called_function["object file"]))
 
-def run(cpachecker, sources, annotations, plan, debug, overview_log):
+def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_limit):
     print("Running plan")
     total_start = time.time()
 
@@ -50,7 +50,9 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log):
                 "-setprop", "nullDerefArgAnnotationAlgorithm.annotationDirectory={}".format(os.path.abspath(annotations)),
                 "-setprop", "analysis.entryFunction={}".format(object_file_plan["functions"][0]["name"]),
                 "-setprop", "nullDerefArgAnnotationAlgorithm.plan={}".format(os.path.abspath(object_file_plan_path)),
-                "-setprop", "parser.usePreprocessor=true"
+                "-setprop", "parser.usePreprocessor=true",
+                "-heap", heap,
+                "-timelimit", time_limit
             ]
 
             if debug:
@@ -124,9 +126,21 @@ def main():
         help="Write overview information into a file instead of stdout."
     )
 
+    parser.add_argument(
+        "--heap",
+        help="Heap limit for cpachecker",
+        default="1200M"
+    )
+
+    parser.add_argument(
+        "--time",
+        help="Time limit for cpachecker",
+        default="900s"
+    )
+
     args = parser.parse_args()
     plan = load_plan(args.plan)
-    run(args.cpachecker, args.sources, args.annotations, plan, args.debug, args.log)
+    run(args.cpachecker, args.sources, args.annotations, plan, args.debug, args.log, args.heap, args.time)
 
 if __name__ == "__main__":
     main()
