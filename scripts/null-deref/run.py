@@ -21,13 +21,14 @@ def write_object_file_plan(object_file_plan, object_file_plan_path):
             for called_function in function["called functions"]:
                 f.write("CALLS {} {}\n".format(called_function["name"], called_function["object file"]))
 
-def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_limit):
+def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_limit, timeout):
     print("Running plan")
     total_start = time.time()
 
     successes = 0
     failures = 0
     errors = 0
+    timed_outs = 0
 
     overview_file = open(overview_log, "w") if overview_log is not None else sys.stdout
 
@@ -71,13 +72,24 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
 
                 start = time.time()
                 popen = subprocess.Popen(args, cwd=cpachecker, stdout=f, stderr=subprocess.STDOUT, universal_newlines=True)
-                popen.wait()
+
+                timed_out = False
+
+                try:
+                    popen.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    f.write("Timed out!\n")
+                    f.flush()
+                    timed_out = True
                 finish = time.time()
 
             with open(log_path) as f:
                 output = f.read()
 
-            if popen.returncode != 0:
+            if timed_out:
+                status = "timed out"
+                timed_outs += 1
+            elif popen.returncode != 0:
                 status = "error"
                 errors += 1
             elif "Verification result: UNKNOWN, incomplete analysis." in output:
@@ -91,7 +103,7 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
             overview_file.flush()
 
         total_finish = time.time()
-        overview_file.write("Completed - {} successes, {} failures, {} errors, took {:.2f} seconds\n".format(successes, failures, errors, total_finish - total_start))
+        overview_file.write("Completed - {} successes, {} failures, {} errors, {} timeouts, took {:.2f} seconds\n".format(successes, failures, errors, timed_outs, total_finish - total_start))
         overview_file.flush()
 
 def main():
@@ -138,9 +150,16 @@ def main():
         default="900s"
     )
 
+    parser.add_argument(
+        "--timeout",
+        help="Timeout for cpachecker, in seconds",
+        type=int,
+        default=None
+    )
+
     args = parser.parse_args()
     plan = load_plan(args.plan)
-    run(args.cpachecker, args.sources, args.annotations, plan, args.debug, args.log, args.heap, args.time)
+    run(args.cpachecker, args.sources, args.annotations, plan, args.debug, args.log, args.heap, args.time, args.timeout)
 
 if __name__ == "__main__":
     main()
