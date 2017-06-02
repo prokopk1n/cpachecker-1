@@ -40,6 +40,12 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
             overview_file.write("Analysing object file #{}/{}: {} ({} functions)".format(i + 1, len(plan), name, len(object_file_plan["functions"])))
             overview_file.flush()
 
+            if not os.path.exists(path):
+                overview_file.write(" - file missing\n")
+                overview_file.flush()
+                errors += 1
+                continue
+
             object_file_plan_path = "object_file_plan.txt"
             write_object_file_plan(object_file_plan, object_file_plan_path)
 
