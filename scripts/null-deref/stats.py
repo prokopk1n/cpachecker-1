@@ -29,6 +29,7 @@ def get_annotations_stats(annotations):
     stats = {
         "files": set(),
         "functions": 0,
+        "functions_with_pointers": set(),
         "parameters": 0,
         "pointers": 0,
         "no deref": 0,
@@ -46,6 +47,7 @@ def get_annotations_stats(annotations):
 
                 if parameter["is pointer"]:
                     stats["pointers"] += 1
+                    stats["functions_with_pointers"].add((name, source_file))
 
                     if parameter["must deref"]:
                         stats["must deref"] += 1
@@ -77,6 +79,19 @@ def main():
     print("Analysed {} functions in {} files out of {} functions in {} files".format(
         annotations_stats["functions"], len(annotations_stats["files"]),
         plan_stats["functions"], len(plan_stats["files"])))
+    print("{} functions have pointer parameters".format(len(annotations_stats["functions_with_pointers"])))
+    print("Average number of functions in a file: {}".format(plan_stats["functions"] / len(plan_stats["files"])))
+
+    plan = sorted(plan, key=lambda of: -len(of["functions"]))
+    print("Median number of functions in a file: {}".format(len(plan[len(plan) // 2]["functions"])))
+    print("10 largest files contain {} functions".format(sum(len(of["functions"]) for of in plan[:10])))
+
+    for of in plan[:10]:
+        print("  {} - {} functions".format(of["object file"], len(of["functions"])))
+
+    deps = sum(len(func["called functions"]) for of in plan for func in of["functions"])
+    print("Total number of dependencies in plan: {} out of 28347".format(deps))
+
     print("{} out of {} parameters are pointers".format(
         annotations_stats["pointers"], annotations_stats["parameters"]))
     print("{} pointer parameters always cause NULL dereference when NULL".format(
