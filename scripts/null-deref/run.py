@@ -83,13 +83,15 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
                 popen = subprocess.Popen(args, cwd=cpachecker, stdout=f, stderr=subprocess.STDOUT, universal_newlines=True)
 
                 timed_out = False
+                errorred = False
 
                 try:
                     popen.wait(timeout=timeout)
                 except subprocess.TimeoutExpired:
-                    f.write("Timed out!\n")
-                    f.flush()
                     timed_out = True
+                except:
+                    errorred = True
+
                 finish = time.time()
 
             with open(log_path) as f:
@@ -98,7 +100,7 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
             if timed_out:
                 status = "timed out"
                 timed_outs += 1
-            elif popen.returncode != 0:
+            elif errorred or popen.returncode != 0:
                 status = "error"
                 errors += 1
             elif "Verification result: UNKNOWN, incomplete analysis." in output:
