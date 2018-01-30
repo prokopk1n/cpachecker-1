@@ -466,7 +466,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     writer.println("INITIAL STATE Init;");
     writer.println("STATE USEALL Init:");
 
-    String assumptions = "";
+    String assumptions = pNullParameter + " == (void *) 0;";
 
     for (ParameterDerefAnnotation parameterAnnotation : pParameterAnnotations) {
       if (parameterAnnotation.isPointer && !parameterAnnotation.name.equals(pNullParameter)) {
@@ -474,10 +474,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       }
     }
 
-    if (!assumptions.equals("")) {
-      writer.println("  MATCH ENTRY -> ASSUME {" + assumptions + "} GOTO Init;");
-    }
-
+    writer.println("  MATCH ENTRY -> ASSUME {" + assumptions + "} GOTO Init;");
     writer.println("  MATCH DEREF {$1} -> DISTINCT SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;");
     writer.println(generateCallAutomatonEdges(pPlan, true));
     writer.println("END AUTOMATON");
