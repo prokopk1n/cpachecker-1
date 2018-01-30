@@ -324,9 +324,9 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
     for (FunctionPlan plan : functionPlans) {
       runFunction(plan);
+      saveAnnotations();
     }
 
-    saveAnnotations();
     return AlgorithmStatus.UNSOUND_AND_PRECISE;
   }
 
