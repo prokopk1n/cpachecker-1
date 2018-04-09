@@ -13,7 +13,7 @@ def write_aspects(annotations, path, assert_func):
     with open(path, "w") as f:
         f.write('before: file ("$this")\n')
         f.write('{\n')
-        f.write('#include "ldv.h"\n')
+        f.write('#include <verifier/common.h>\n')
         f.write('}\n')
         f.write('\n')
 
@@ -26,10 +26,10 @@ def write_aspects(annotations, path, assert_func):
                     if not need_aspect:
                         need_aspect = True
 
-                        f.write('around: call({}(..))\n'.format(name))
+                        f.write('around: call(void {}(..))\n'.format(name))
                         f.write('{\n')
 
-                    f.write('  {}($arg{});\n'.format(assert_func, index + 1));
+                    f.write('  {}($arg{} != NULL);\n'.format(assert_func, index + 1));
 
             if need_aspect:
                 f.write('}\n')
