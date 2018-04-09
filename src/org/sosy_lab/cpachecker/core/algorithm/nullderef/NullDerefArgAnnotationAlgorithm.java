@@ -45,6 +45,7 @@ import org.sosy_lab.cpachecker.cfa.CFA;
 import org.sosy_lab.cpachecker.cfa.ast.AParameterDeclaration;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
+import org.sosy_lab.cpachecker.cfa.types.c.CFunctionType;
 import org.sosy_lab.cpachecker.cfa.types.c.CPointerType;
 import org.sosy_lab.cpachecker.core.CPABuilder;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
@@ -177,10 +178,12 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
   private static class FunctionDerefAnnotation {
     public String name;
+    public String retType;
     public ArrayList<ParameterDerefAnnotation> parameterAnnotations;
 
-    public FunctionDerefAnnotation(String pName) {
+    public FunctionDerefAnnotation(String pName, String pRetType) {
       name = pName;
+      retType = pRetType;
       parameterAnnotations = new ArrayList<>();
     }
   }
@@ -278,7 +281,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
         String[] parts = line.split(" ");
 
         if (parts[0].equals("FUNCTION")) {
-          annotation = new FunctionDerefAnnotation(parts[1]);
+          annotation = new FunctionDerefAnnotation(parts[1], br.readLine());
           otherFunctionAnnotations.put(parts[1], annotation);
         } else if (parts[0].equals("PARAM")) {
           annotation.parameterAnnotations.add(new ParameterDerefAnnotation(
@@ -303,6 +306,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
       for (FunctionDerefAnnotation functionAnnotation : functionAnnotations.values()) {
         writer.println("FUNCTION " + functionAnnotation.name);
+        writer.println(functionAnnotation.retType);
 
         for (ParameterDerefAnnotation parameterAnnotation: functionAnnotation.parameterAnnotations) {
           writer.println("PARAM " + parameterAnnotation.name + " " + parameterAnnotation.isPointer +
@@ -333,7 +337,9 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   private void runFunction(FunctionPlan pPlan) {
     logger.log(Level.INFO, "Analysing function " + pPlan.name);
     FunctionEntryNode entryNode = cfa.getFunctionHead(pPlan.name);
-    FunctionDerefAnnotation functionAnnotation = new FunctionDerefAnnotation(pPlan.name);
+    CFunctionType functionType = (CFunctionType) entryNode.getFunctionDefinition().getType();
+    String functionRetType = functionType.getReturnType().toString();
+    FunctionDerefAnnotation functionAnnotation = new FunctionDerefAnnotation(pPlan.name, functionRetType);
     ArrayList<ParameterDerefAnnotation> parameterAnnotations = functionAnnotation.parameterAnnotations;
 
     for (AParameterDeclaration parameterDeclaration : entryNode.getFunctionParameters()) {
