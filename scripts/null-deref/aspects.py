@@ -7,15 +7,16 @@ def load_annotations(path):
     with open(path) as f:
         return json.load(f)
 
-def write_aspects(annotations, path, assert_func):
-    print("Writing aspect file {} using function {}".format(path, assert_func))
+def write_aspects(annotations, path, check_type):
+    print("Writing aspect file {} using check type '{}'".format(path, check_type))
 
     with open(path, "w") as f:
         f.write('before: file ("$this")\n')
         f.write('{\n')
-        f.write('#include <verifier/common.h>\n')
+        f.write('#include <null_deref_assume.h>\n')
         f.write('}\n')
-        f.write('\n')
+        f.wrrite('\n');
+
 
         for name, source_files in sorted(annotations.items()):
             source_file, function = min(source_files.items())
@@ -29,7 +30,7 @@ def write_aspects(annotations, path, assert_func):
                         f.write('around: call(void {}(..))\n'.format(name))
                         f.write('{\n')
 
-                    f.write('  {}($arg{} != NULL);\n'.format(assert_func, index + 1));
+                    f.write('  null_deref_{}_check($arg{});\n'.format(check_type, index + 1));
 
             if need_aspect:
                 f.write('}\n')
@@ -52,8 +53,8 @@ def main():
 
     args = parser.parse_args()
     annotations = load_annotations(args.annotations)
-    write_aspects(annotations, args.assert_aspect, "ldv_assert")
-    write_aspects(annotations, args.assume_aspect, "ldv_assume")
+    write_aspects(annotations, args.assert_aspect, "assert")
+    write_aspects(annotations, args.assume_aspect, "assume")
 
 if __name__ == "__main__":
     main()
