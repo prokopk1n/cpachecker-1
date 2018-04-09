@@ -13,7 +13,7 @@ def write_aspects(annotations, path, check_type):
     with open(path, "w") as f:
         f.write('before: file ("$this")\n')
         f.write('{\n')
-        f.write('#include <null_deref_checks.h>\n')
+        f.write('#include <null_deref_{}.h>\n'.format(check_type))
         f.write('}\n')
         f.write('\n');
 
