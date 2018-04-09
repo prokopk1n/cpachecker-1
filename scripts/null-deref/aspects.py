@@ -15,11 +15,12 @@ def write_aspects(annotations, path, check_type):
         f.write('{\n')
         f.write('#include <null_deref_assume.h>\n')
         f.write('}\n')
-        f.wrrite('\n');
+        f.write('\n');
 
 
         for name, source_files in sorted(annotations.items()):
             source_file, function = min(source_files.items())
+            return_type = function.get("return type", "void")
             need_aspect = False
 
             for index, parameter in enumerate(function["params"]):
@@ -27,7 +28,7 @@ def write_aspects(annotations, path, check_type):
                     if not need_aspect:
                         need_aspect = True
 
-                        f.write('around: call(void {}(..))\n'.format(name))
+                        f.write('around: call({} {}(..))\n'.format(return_type, name))
                         f.write('{\n')
 
                     f.write('  null_deref_{}_check($arg{});\n'.format(check_type, index + 1));
