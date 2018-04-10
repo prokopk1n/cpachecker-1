@@ -338,7 +338,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     logger.log(Level.INFO, "Analysing function " + pPlan.name);
     FunctionEntryNode entryNode = cfa.getFunctionHead(pPlan.name);
     CFunctionType functionType = (CFunctionType) entryNode.getFunctionDefinition().getType();
-    String functionRetType = functionType.getReturnType().toString();
+    String functionRetType = functionType.toASTString(pPlan.name);
     FunctionDerefAnnotation functionAnnotation = new FunctionDerefAnnotation(pPlan.name, functionRetType);
     ArrayList<ParameterDerefAnnotation> parameterAnnotations = functionAnnotation.parameterAnnotations;
 

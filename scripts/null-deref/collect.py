@@ -37,11 +37,11 @@ def collect_annotations(km, annotations_dir):
 
                 if parts[0] == "FUNCTION":
                     function_name = parts[1]
-                    function_return_type = next(f).strip()
+                    function_signature = next(f).strip()
                     source_file = get_source_file(km, object_file, function_name)
                     annotation = {
                         "object file": object_file,
-                        "return type": function_return_type,
+                        "signature": function_signature,
                         "params": []
                     }
 
