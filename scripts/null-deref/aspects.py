@@ -24,48 +24,92 @@ def write_aspects(functions, path, check_type):
         f.write('}\n')
         f.write('\n')
 
-        for function in functions:
-            f.write(function["aspect"].replace("NULLDEREFCHECKTYPE", check_type))
+        for name, function in sorted(functions.items()):
+            if "aspect" in function:
+                f.write(function["aspect"].replace("NULLDEREFCHECKTYPE", check_type))
 
-def get_functions_with_aspects(km, annotations):
-    functions = []
+def get_functions(km, annotations):
+    functions = {}
 
     for name, source_files in sorted(annotations.items()):
-        source_file, function = min(source_files.items())
+        source_file, annotation = min(source_files.items())
+
+        if not any(parameter["is pointer"] for parameter in annotation["params"]):
+            continue
+
+        function = {
+            "source_file": source_file,
+            "called_files": []
+        }
+        functions[name] = function
+
+        function_info = km["functions"][name][source_file]
+
+        if "called in" in function_info:
+            for call_files in function_info["called in"].values():
+                function["called_files"].extend(call_files)
 
         aspect_lines = []
 
-        for index, parameter in enumerate(function["params"]):
+        for index, parameter in enumerate(annotation["params"]):
             if parameter["is pointer"] and parameter["must deref"]:
                 aspect_lines.append("  null_deref_NULLDEREFCHECKTYPE_check($arg{});".format(index + 1))
+
+
 
         if len(aspect_lines) == 0:
             continue
 
-        signature = function["signature"]
+        signature = annotation["signature"]
         # Replace argument list with `..`.
         match = re.match(r"^(.*{})\(.*\)$".format(name), signature)
         signature = match.group(1) + "(..)"
 
-        aspect = "around: call({})\n{{\n{}\n}}\n\n".format(signature, "\n".join(aspect_lines))
-
-        function = {
-            "name": name,
-            "source_file": source_file,
-            "aspect": aspect
-        }
-
-        function_info = km["functions"][name][source_file]
-        called_in = function_info.get("called in", {})
-
-        driver_files = [call_file for function_call_files in called_in.values() for call_file in function_call_files if call_file.startswith("drivers/") and not call_file.startswith("drivers/base/")]
-
-        if len(driver_files) > 0:
-            print("Function {} has an aspect and is called by drivers: {}".format(name, ", ".join(sorted(driver_files))))
-
-        functions.append(function)
+        function["aspect"] = "around: call({})\n{{\n{}\n}}\n\n".format(signature, "\n".join(aspect_lines))
 
     return functions
+
+def get_calling_drivers(functions):
+    drivers = {}
+
+    for name, function in functions.items():
+        for called_file in function["called_files"]:
+            if called_file.startswith("drivers/") and not called_file.startswith("drivers/base/"):
+                drivers.setdefault(called_file, []).append(name)
+
+    return drivers
+
+def filter_aspected(drivers, functions):
+    filtered_drivers = {}
+
+    for driver, called_names in drivers.items():
+        for name in called_names:
+            if "aspect" in functions[name]:
+                filtered_drivers.setdefault(driver, []).append(name)
+
+    return filtered_drivers
+
+def report_drivers(drivers, functions, only_aspected):
+    functions_descr = "functions with aspects" if only_aspected else "all functions with pointer arguments"
+
+    print("Looking at drivers that call {}.".format(functions_descr))
+
+    if only_aspected:
+        drivers = filter_aspected(drivers, functions)
+
+    print("Total number of drivers: {}".format(len(drivers)))
+    print("Total number of calls: {}".format(sum(len(names) for names in drivers.values())))
+
+    print("Most calling drivers:")
+    print()
+
+    for driver, names in sorted(drivers.items(), key=lambda pair: -len(pair[1])):
+        print("  {}: {} calls".format(driver, len(names)))
+
+        for name in sorted(names):
+            print("    {}".format(name))
+
+        print()
 
 def main():
     parser = argparse.ArgumentParser(description="Aspect file generator")
@@ -89,7 +133,10 @@ def main():
     args = parser.parse_args()
     km = load_km(args.km)
     annotations = load_annotations(args.annotations)
-    functions = get_functions_with_aspects(km, annotations)
+    functions = get_functions(km, annotations)
+    drivers = get_calling_drivers(functions)
+    report_drivers(drivers, functions, True)
+    report_drivers(drivers, functions, False)
     write_aspects(functions, args.assert_aspect, "assert")
     write_aspects(functions, args.assume_aspect, "assume")
 
