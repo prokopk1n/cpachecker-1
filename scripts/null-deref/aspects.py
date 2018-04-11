@@ -28,7 +28,7 @@ def write_aspects(annotations, path, check_type):
                     if not need_aspect:
                         need_aspect = True
 
-                        f.write('around: call({}\n'.format(signature))
+                        f.write('around: call({})\n'.format(signature))
                         f.write('{\n')
 
                     f.write('  null_deref_{}_check($arg{});\n'.format(check_type, index + 1));
