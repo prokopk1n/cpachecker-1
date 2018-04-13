@@ -1,5 +1,7 @@
-#include <verifier/common.h>
+#include <ldv-test.h>
 
 void null_deref_assert_check(void *p) {
-    ldv_assert("null_deref_assert_check", p != 0);
+    if (p == 0) {
+        ldv_error();
+    }
 }
