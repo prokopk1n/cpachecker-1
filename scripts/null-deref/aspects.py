@@ -37,25 +37,27 @@ def get_functions(km, annotations):
         if not any(parameter["is pointer"] for parameter in annotation["params"]):
             continue
 
+        if name not in km["functions"]:
+            print("{} not found in km".format(name))
+            continue
+
         function = {
             "source_file": source_file,
-            "called_files": []
+            "called_files": set()
         }
         functions[name] = function
 
-        function_info = km["functions"][name][source_file]
+        function_info = km["functions"][name].get(source_file, min(km["functions"][name].items())[1])
 
         if "called in" in function_info:
             for call_files in function_info["called in"].values():
-                function["called_files"].extend(call_files)
+                function["called_files"].update(call_files)
 
         aspect_lines = []
 
         for index, parameter in enumerate(annotation["params"]):
             if parameter["is pointer"] and parameter["must deref"]:
                 aspect_lines.append("  null_deref_NULLDEREFCHECKTYPE_check($arg{});".format(index + 1))
-
-
 
         if len(aspect_lines) == 0:
             continue
