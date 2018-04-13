@@ -32,6 +32,36 @@ def build_function_graph(km):
     print("Function graph has {} nodes".format(len(function_graph)))
     return function_graph
 
+def prune_static_functions(km, function_graph):
+    print("Pruning static functions not called by global functions")
+
+    marked = set()
+
+    def mark(function):
+        if function in marked:
+            return
+
+        marked.add(function)
+
+        for called_function in function_graph[function]:
+            mark(called_function)
+
+    for function in function_graph:
+        name, file = function
+        function_info = km["functions"][name][file]
+
+        if "type" in function_info and function_info["type"] == "global":
+            mark(function)
+
+    pruned_function_graph = {}
+
+    for function, called_functions in function_graph.items():
+        if function in marked:
+            pruned_function_graph[function] = called_functions
+
+    print("Pruned function graph has {} nodes".format(len(pruned_function_graph)))
+    return pruned_function_graph
+
 def assign_functions_to_object_files(km, function_graph):
     print("Assigning functions to object files")
 
@@ -182,7 +212,7 @@ def main():
 
     args = parser.parse_args()
     km = load_km(args.km)
-    function_graph = build_function_graph(km)
+    function_graph = prune_static_functions(km, build_function_graph(km))
     function_to_object_file, object_file_graph = assign_functions_to_object_files(km, function_graph)
     object_file_order = order_object_files(object_file_graph)
     object_file_to_function_order = order_functions_within_object_files(function_to_object_file, function_graph, object_file_graph)
