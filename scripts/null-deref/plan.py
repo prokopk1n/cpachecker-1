@@ -1,70 +1,36 @@
 import argparse
 import json
+import random
+import sys
 
-def load_km(path):
-    print("Loading project information from {}".format(path))
+def load_preplan(path):
+    print("Loading preplan from {}".format(path))
 
     with open(path) as f:
         return json.load(f)
 
-def build_function_graph(km):
-    print("Building function graph")
+def random_order(iterable):
+    items = list(iterable)
+    items.sort()
+    random.shuffle(items)
+    return items
 
+def from_json_function_graph(json_function_graph):
+    print("Converting function graph from JSON-friendly format")
     function_graph = {}
 
-    for name, files in km["functions"].items():
-        for file, function_info in files.items():
-            if "compiled to" not in km["source files"][file]:
-                continue
+    for name, files in json_function_graph.items():
+        for file, json_called_functions in files.items():
+            called_functions = set()
+            function_graph[(name, file)] = called_functions
 
-            function = (name, file)
-            called_functions = function_graph.setdefault(function, set())
+            for called_name, called_files in json_called_functions.items():
+                for called_file in called_files:
+                    called_functions.add((called_name, called_file))
 
-            if "calls" in function_info:
-                for called_name, called_files in function_info["calls"].items():
-                    for called_file in called_files:
-                        if "compiled to" not in km["source files"][called_file]:
-                            continue
-
-                        called_function = (called_name, called_file)
-                        called_functions.add(called_function)
-
-    print("Function graph has {} nodes".format(len(function_graph)))
     return function_graph
 
-def prune_static_functions(km, function_graph):
-    print("Pruning static functions not called by global functions")
-
-    marked = set()
-
-    def mark(function):
-        if function in marked:
-            return
-
-        marked.add(function)
-
-        for called_function in function_graph[function]:
-            mark(called_function)
-
-    for function in function_graph:
-        name, file = function
-        function_info = km["functions"][name][file]
-
-        if "type" in function_info and function_info["type"] == "global":
-            mark(function)
-
-    pruned_function_graph = {}
-
-    for function, called_functions in function_graph.items():
-        if function in marked:
-            pruned_function_graph[function] = called_functions
-
-    print("Pruned function graph has {} nodes".format(len(pruned_function_graph)))
-    return pruned_function_graph
-
-def assign_functions_to_object_files(km, function_graph):
-    print("Assigning functions to object files")
-
+def assign_functions_to_object_files(candidate_object_files, function_graph):
     reversed_function_graph = {function: set() for function in function_graph}
 
     for function, successors in function_graph.items():
@@ -74,10 +40,9 @@ def assign_functions_to_object_files(km, function_graph):
     function_to_object_file = {}
     object_file_graph = {}
 
-    for function in function_graph:
+    for function in random_order(function_graph):
         name, file = function
-        candidates = km["source files"][file]["compiled to"]
-        selected = next(iter(candidates))
+        candidates = candidate_object_files[file]
 
         immediately_depending_object_files = []
 
@@ -86,7 +51,7 @@ def assign_functions_to_object_files(km, function_graph):
                 object_file = function_to_object_file[depending_function]
                 immediately_depending_object_files.append(object_file)
 
-        selected = list(candidates)[0]
+        selected = candidates[0]
 
         # Object files depending on the function now depend on the selected object file.
         selected_dependents = object_file_graph.setdefault(selected, set())
@@ -104,7 +69,6 @@ def assign_functions_to_object_files(km, function_graph):
 
         function_to_object_file[function] = selected
 
-    print("Assigned {} functions to {} object files".format(len(function_graph), len(object_file_graph)))
     return function_to_object_file, object_file_graph
 
 def visit(graph, visited, postorder, node):
@@ -113,7 +77,7 @@ def visit(graph, visited, postorder, node):
 
     visited.add(node)
 
-    for successor in graph[node]:
+    for successor in random_order(graph[node]):
         visit(graph, visited, postorder, successor)
 
     postorder.append(node)
@@ -122,19 +86,13 @@ def reverse_postorder(graph):
     visited = set()
     postorder = []
 
-    for node in graph:
+    for node in random_order(graph):
         visit(graph, visited, postorder, node)
 
     postorder.reverse()
     return postorder
 
-def order_object_files(object_file_graph):
-    print("Ordering object files")
-    return reverse_postorder(object_file_graph)
-
 def order_functions_within_object_files(function_to_object_file, function_graph, object_file_graph):
-    print("Ordering functions within each object file")
-
     object_file_to_function_graph = {}
 
     for function, object_file in function_to_object_file.items():
@@ -152,9 +110,7 @@ def order_functions_within_object_files(function_to_object_file, function_graph,
 
     return object_file_to_function_order
 
-def make_plan(function_graph, function_to_object_file, object_file_order, object_file_to_function_order):
-    print("Assembling plan")
-
+def assemble_plan(function_graph, function_to_object_file, object_file_order, object_file_to_function_order):
     plan = []
     processed_functions = set()
     calls = 0
@@ -189,8 +145,21 @@ def make_plan(function_graph, function_to_object_file, object_file_order, object
 
         plan.append(object_file_plan)
 
-    print("Plan drops {} out of {} interprocedural dependencies".format(dropped, calls))
-    return plan
+    return plan, {
+        "dropped": dropped,
+        "calls": calls,
+        "object files": len(object_file_order),
+        "functions": len(function_graph) 
+    }
+
+def make_plan(preplan):
+    function_graph = preplan["function graph"]
+    candidate_object_files = preplan["candidate object files"]
+
+    function_to_object_file, object_file_graph = assign_functions_to_object_files(candidate_object_files, function_graph)
+    object_file_order = reverse_postorder(object_file_graph)
+    object_file_to_function_order = order_functions_within_object_files(function_to_object_file, function_graph, object_file_graph)
+    return assemble_plan(function_graph, function_to_object_file, object_file_order, object_file_to_function_order)
 
 def save_plan(plan, path):
     print("Saving plan to {}".format(path))
@@ -203,21 +172,43 @@ def main():
         description="Plan generator for null deref annotation algorithm")
 
     parser.add_argument(
-        "km",
-        help="Path to a JSON file containing information about analysed project, as produced by kartographer.")
+        "preplan",
+        help="Path to a JSON file containing preplan, as generated by preplan.py.")
 
     parser.add_argument(
         "plan",
         help="Path used to write generated plan.")
 
+    parser.add_argument(
+        "--attempts",
+        type=int,
+        default="1",
+        help="Number of plan rearrangement attempts, will pick the one with the least number of interprocedural dependencies dropped.")
+
     args = parser.parse_args()
-    km = load_km(args.km)
-    function_graph = prune_static_functions(km, build_function_graph(km))
-    function_to_object_file, object_file_graph = assign_functions_to_object_files(km, function_graph)
-    object_file_order = order_object_files(object_file_graph)
-    object_file_to_function_order = order_functions_within_object_files(function_to_object_file, function_graph, object_file_graph)
-    plan = make_plan(function_graph, function_to_object_file, object_file_order, object_file_to_function_order)
-    save_plan(plan, args.plan)
+    preplan = load_preplan(args.preplan)
+    preplan["function graph"] = from_json_function_graph(preplan["function graph"])
+
+    random.seed()
+
+    min_dropped_deps = None
+    best_plan = None
+
+    for attempt in range(args.attempts):
+        plan, stats = make_plan(preplan)
+        dropped_deps = stats["dropped"]
+
+        if min_dropped_deps is None or dropped_deps < min_dropped_deps:
+            min_dropped_deps = dropped_deps
+            best_plan = plan
+            best_stats = stats
+
+        sys.stdout.write("\rBest plan after {} attempts: {} functions in {} object files, {} dropped interprocedural dependencies out of {} ({:.4f}%)".format(
+                attempt + 1, best_stats["functions"], best_stats["object files"], best_stats["dropped"], best_stats["calls"], best_stats["dropped"] / best_stats["calls"] * 100))
+        sys.stdout.flush()
+
+    print()
+    save_plan(best_plan, args.plan)
 
 if __name__ == "__main__":
     main()
