@@ -1,6 +1,7 @@
 import argparse
 import json
 import random
+import os
 import sys
 
 def load_preplan(path):
@@ -43,6 +44,12 @@ def assign_functions_to_object_files(candidate_object_files, function_graph):
     for function in random_order(function_graph):
         name, file = function
         candidates = candidate_object_files[file]
+        filtered_candidates = [candidate for candidate in candidates if os.path.basename(candidate) != "a.out"]
+
+        if len(filtered_candidates) > 0:
+            selected = filtered_candidates[0]
+        else:
+            selected = candidates[0]
 
         immediately_depending_object_files = []
 
@@ -50,8 +57,6 @@ def assign_functions_to_object_files(candidate_object_files, function_graph):
             if depending_function in function_to_object_file:
                 object_file = function_to_object_file[depending_function]
                 immediately_depending_object_files.append(object_file)
-
-        selected = candidates[0]
 
         # Object files depending on the function now depend on the selected object file.
         selected_dependents = object_file_graph.setdefault(selected, set())
