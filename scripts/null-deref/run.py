@@ -21,7 +21,7 @@ def write_object_file_plan(object_file_plan, object_file_plan_path):
             for called_function in function["called functions"]:
                 f.write("CALLS {} {}\n".format(called_function["name"], called_function["object file"]))
 
-def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_limit, timeout, since):
+def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_limit, timeout, from_file, to_file):
     print("Running plan")
     total_start = time.time()
 
@@ -33,7 +33,7 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
     overview_file = open(overview_log, "w") if overview_log is not None else sys.stdout
 
     with overview_file:
-        for i in range(since - 1, len(plan)):
+        for i in range(from_file - 1, to_file if to_file is not None else len(plan)):
             object_file_plan = plan[i]
             name = object_file_plan["object file"]
             path = os.path.join(sources, name, os.path.basename(name))
@@ -169,15 +169,20 @@ def main():
     )
 
     parser.add_argument(
-        "--since",
+        "--from-file",
         help="Start from given index in plan",
         type=int,
         default=1
     )
 
+    parser.add_argument(
+        "--to-file",
+        help="Stop after given index in plan",
+        type=int)
+
     args = parser.parse_args()
     plan = load_plan(args.plan)
-    run(args.cpachecker, args.sources, args.annotations, plan, args.debug, args.log, args.heap, args.time, args.timeout, args.since)
+    run(args.cpachecker, args.sources, args.annotations, plan, args.debug, args.log, args.heap, args.time, args.timeout, args.from_file, args.to_file)
 
 if __name__ == "__main__":
     main()
