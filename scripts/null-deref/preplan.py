@@ -50,7 +50,7 @@ def prune_static_functions(km, function_graph):
         name, file = function
         function_info = km["functions"][name][file]
 
-        if "type" in function_info and function_info["type"] == "global":
+        if "type" in function_info and function_info["type"] in ["global", "exported"]:
             mark(function)
 
     pruned_function_graph = {}
