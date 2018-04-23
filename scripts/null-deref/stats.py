@@ -101,7 +101,7 @@ def main():
     print("{} pointer parameters can not cause NULL dereference when NULL".format(
         annotations_stats["no deref"]))
 
-    bad_files = sorted(plan_stats["files"] - annotations_stats["files"])
+    bad_files = plan_stats["files"] - annotations_stats["files"]
 
     if len(bad_files) > 0:
         print()
@@ -112,7 +112,7 @@ def main():
         for file in plan:
             num_functions[file["object file"]] = len(file["functions"])
 
-        for file in bad_files:
+        for file in sorted(bad_files, key=lambda file: -num_functions[file]):
             print("  {} - {} functions".format(file, num_functions[file]))
 
 if __name__ == "__main__":
