@@ -90,7 +90,7 @@ def main():
         print("  {} - {} functions".format(of["object file"], len(of["functions"])))
 
     deps = sum(len(func["called functions"]) for of in plan for func in of["functions"])
-    print("Total number of dependencies in plan: {} out of 28347".format(deps))
+    print("Total number of dependencies in plan: {}".format(deps))
 
     print("{} out of {} parameters are pointers".format(
         annotations_stats["pointers"], annotations_stats["parameters"]))
