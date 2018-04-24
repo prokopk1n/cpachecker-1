@@ -63,13 +63,19 @@ def get_functions(km, annotations):
             "source_file": source_file,
             "called_files": set()
         }
-        functions[name] = function
 
         function_info = km["functions"][name].get(source_file, min(km["functions"][name].items())[1])
 
         if "called in" in function_info:
             for call_files in function_info["called in"].values():
-                function["called_files"].update(call_files)
+                for call_file in call_files:
+                    if call_file.startswith("drivers/"):
+                        function["called_files"].add(call_file)
+
+        if len(function["called_files"]) == 0:
+            continue
+
+        functions[name] = function
 
         aspect_lines = []
 
