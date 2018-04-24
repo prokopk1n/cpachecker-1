@@ -28,6 +28,24 @@ def write_aspects(functions, path, check_type):
             if "aspect" in function:
                 f.write(function["aspect"].replace("NULLDEREFCHECKTYPE", check_type))
 
+nondet_functions = {
+    "char": "__VERIFIER_nondet_char",
+    "int": "__VERIFIER_nondet_int",
+    "float": "__VERIFIER_nondet_float",
+    "long": "__VERIFIER_nondet_long",
+    "size_t": "__VERIFIER_nondet_size_t",
+    "loff_t": "__VERIFIER_nondet_loff_t",
+    "u32": "__VERIFIER_nondet_u32",
+    "u16": "__VERIFIER_nondet_u16",
+    "u8": "__VERIFIER_nondet_u8",
+    "unsigned char": "__VERIFIER_nondet_uchar",
+    "unsigned int": "__VERIFIER_nondet_uint",
+    "unsigned short": "__VERIFIER_nondet_ushort",
+    "unsigned": "__VERIFIER_nondet_unsigned",
+    "unsigned long": "__VERIFIER_nondet_ulong",
+    "unsigned long long": "__VERIFIER_nondet_ulonglong"
+}
+
 def get_functions(km, annotations):
     functions = {}
 
@@ -64,8 +82,19 @@ def get_functions(km, annotations):
 
         signature = annotation["signature"]
         # Replace argument list with `..`.
-        match = re.match(r"^(.*{})\(.*\)$".format(name), signature)
-        signature = match.group(1) + "(..)"
+        match = re.match(r"^(.*){}\(.*\)$".format(name), signature)
+        ret_type = match.group(1).strip()
+        signature = "{} {}(..)".format(ret_type, name)
+
+        if "*" in ret_type:
+            aspect_lines.append("  return external_allocated_data();")
+        elif ret_type.startswith("struct "):
+            aspect_lines.append("  {} *retp = external_allocated_data();".format(ret_type))
+            aspect_lines.append("  return *retp;")
+        elif ret_type in nondet_functions:
+            aspect_lines.append("  return {}();".format(nondet_functions[ret_type]))
+        elif ret_type != "void":
+            aspect_lines.append("  return ({}) __VERIFIER_nondet_ulonglong();".format(ret_type))
 
         function["aspect"] = "around: call({})\n{{\n{}\n}}\n\n".format(signature, "\n".join(aspect_lines))
 
