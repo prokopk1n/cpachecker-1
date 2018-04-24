@@ -109,6 +109,7 @@ def build_model(preplan, plan, annotations, log):
 
             function_stats = model["functions"][name][file]
             function_stats["has annotation"] = True
+            function_stats["source file"] = source_file
             function_stats["signature"] = annotation["signature"]
             function_stats["params"] = []
 
@@ -142,6 +143,7 @@ def show_function_stats(function_stats, indent):
 
 
     if function_stats["has annotation"]:
+        print("{}Source file: '{}'".format(indent, function_stats["source file"]))
         print("{}Signature: {}".format(indent, function_stats["signature"]))
         print("{}Parameter descriptions:".format(indent))
 
