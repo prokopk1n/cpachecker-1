@@ -94,13 +94,11 @@ def get_functions(km, annotations):
 
         if "*" in ret_type:
             aspect_lines.append("  return external_allocated_data();")
-        elif ret_type.startswith("struct "):
-            aspect_lines.append("  {} *retp = external_allocated_data();".format(ret_type))
-            aspect_lines.append("  return *retp;")
         elif ret_type in nondet_functions:
             aspect_lines.append("  return {}();".format(nondet_functions[ret_type]))
         elif ret_type != "void":
-            aspect_lines.append("  return ({}) __VERIFIER_nondet_ulonglong();".format(ret_type))
+            aspect_lines.append("  {} *retp = external_allocated_data();".format(ret_type))
+            aspect_lines.append("  return *retp;")
 
         function["aspect"] = "around: call({})\n{{\n{}\n}}\n\n".format(signature, "\n".join(aspect_lines))
 
