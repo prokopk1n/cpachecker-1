@@ -30,7 +30,15 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
     errors = 0
     timed_outs = 0
 
-    overview_file = open(overview_log, "w") if overview_log is not None else sys.stdout
+    if overview_log is None:
+        overview_file = sys.stdout
+    else:
+        add_newline = os.path.exists(overview_file)
+        overview_file = open(overview_log, "a")
+
+        if add_newline:
+            overview_file.write("\n")
+            overview_file.flush()
 
     with overview_file:
         for i in range(from_file - 1, to_file if to_file is not None else len(plan)):
