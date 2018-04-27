@@ -350,6 +350,8 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     FunctionDerefAnnotation functionAnnotation = new FunctionDerefAnnotation(pPlan.name, functionRetType);
     ArrayList<ParameterDerefAnnotation> parameterAnnotations = functionAnnotation.parameterAnnotations;
 
+    functionAnnotation.retTypeIsPointer = functionType.getReturnType() instanceof CPointerType;
+
     for (AParameterDeclaration parameterDeclaration : entryNode.getFunctionParameters()) {
       Boolean isPointer = parameterDeclaration.getType() instanceof CPointerType;
       ParameterDerefAnnotation parameterAnnotation = new ParameterDerefAnnotation(
@@ -360,6 +362,12 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     cfa = cfa.getCopyWithMainFunction(entryNode);
 
     try {
+      if (functionAnnotation.retTypeIsPointer) {
+        if (mayReturnNull(pPlan)) {
+          functionAnnotation.retMayBeNull = true;
+        }
+      }
+
       for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
         if (parameterAnnotation.isPointer) {
           if (mayDereferenceNull(pPlan, parameterAnnotations, parameterAnnotation.name)) {
@@ -510,6 +518,23 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     writer.println("END AUTOMATON");
     writer.close();
     return fileName;
+  }
+
+  private String generateReturnNullPossibilitySpec(FunctionPlan pPlan) throws FileNotFoundException {
+    String fileName = distinctTempSpecNames ? ("may_return_null_" + pPlan.name + "_tmp.spc") : "may_return_null_tmp.spc";
+    PrintWriter writer = new PrintWriter(fileName);
+    writer.println("CONTROL AUTOMATON MAYRETURNNULL");
+    writer.println("INITIAL STATE Init;");
+    writer.println("STATE USEALL Init:");
+    writer.println("");
+    writer.println("END AUTOMATON");
+    writer.close();
+    return fileName;
+  }
+
+  private Boolean mayReturnNull(FunctionPlan pPlan) throws FileNotFoundException {
+    return runWithSpecification(pPlan, generateReturnNullPossibilitySpec(pPlan), "May return null analysis");
+
   }
 
   private Boolean mayDereferenceNull(FunctionPlan pPlan, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
