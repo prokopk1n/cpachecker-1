@@ -38,6 +38,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CIntegerLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CParameterDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CSimpleDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CStatement;
+import org.sosy_lab.cpachecker.cfa.ast.c.CVariableDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.SubstitutingCAstNodeVisitor;
 import org.sosy_lab.cpachecker.cfa.ast.c.SubstitutingCAstNodeVisitor.SubstituteProvider;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
@@ -316,6 +317,18 @@ public class AutomatonExpressionArguments {
                 "Unable to fix a expression type with out a CFA. Inject a CFA with "
                     + "\"AutomatonExpressionArguments.setCFA(CFA)\" before calling the method "
                     + "\"substituteJokerVariables(CAstNode)\"!");
+
+            if (cfa.getMainFunction().getReturnVariable().isPresent()) {
+              CVariableDeclaration returnVariableDeclaration = (CVariableDeclaration) cfa.getMainFunction().getReturnVariable().get();
+
+              if (name.equals(returnVariableDeclaration.getName())) {
+                return new CIdExpression(
+                    exp.getFileLocation(),
+                    returnVariableDeclaration.getType(),
+                    exp.toASTString(),
+                    exp.getDeclaration() == null ? returnVariableDeclaration : exp.getDeclaration());
+              }
+            }
 
             final SearchDeclarationVisitor visitor =
                 new SearchDeclarationVisitor(exp.toASTString());
