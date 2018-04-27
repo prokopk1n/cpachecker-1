@@ -97,7 +97,7 @@ def join_annotations(annotations1, annotations2):
     for name, source_files in annotations2.items():
         for source_file, annotation2 in source_files.items():
             if name not in annotation1 or source_file not in annotations1[name]:
-                joined_annotation.setdefault(name, {})[source_file] = annotation2
+                joined_annotations.setdefault(name, {})[source_file] = annotation2
                 annotations2_only += 1
 
     print("For {} functions only annotations1 has an annotation".format(annotations1_only))
