@@ -483,6 +483,35 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     return res;
   }
 
+  private String generateReturnAutomatonEdges(FunctionPlan pPlan) {
+    String res = "";
+
+    for (Pair<String, String> dependency : pPlan.dependencies) {
+      String dependencyName = dependency.getFirst();
+      String dependencyObjectFile = dependency.getSecond();
+      FunctionDerefAnnotation annotation = getFunctionAnnotation(dependencyName, dependencyObjectFile);
+
+      if (annotation == null) {
+        logger.log(Level.INFO, "Could not find annotation for " + dependencyName + " in " + dependencyObjectFile);
+        continue;
+      }
+
+      if (annotation.retTypeIsPointer && !annotation.retMayBeNull) {
+        String parametersTemplate = "";
+
+        for (ParameterDerefAnnotation parameterAnnotation : annotation.parameterAnnotations) {
+          parametersTemplate = parametersTemplate.equals("") ? "$?" : (parametersTemplate + ", $?");
+        }
+
+        String callTemplate = dependencyName + "(" + parametersTemplate + ")";
+
+        res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {$1 != (void *) 0} GOTO Init;";
+      }
+    }
+
+    return res;
+  }
+
   private String generateNullDereferencePossibilitySpec(FunctionPlan pPlan, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
     String fileName = distinctTempSpecNames ? ("may_" + pPlan.name + "_" + pNullParameter + "_tmp.spc") : "may_tmp.spc";
     PrintWriter writer = new PrintWriter(fileName);
@@ -530,6 +559,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     writer.println("STATE USEALL Init:");
 
     writer.println("  MATCH EXIT -> SPLIT {" + pFunctionRetVar + " != (void *) 0} GOTO Init NEGATION ERROR;");
+    writer.println(generateReturnAutomatonEdges(pPlan));
     writer.println("END AUTOMATON");
     writer.close();
     return fileName;
