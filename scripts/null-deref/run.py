@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -21,7 +22,7 @@ def write_object_file_plan(object_file_plan, object_file_plan_path):
             for called_function in function["called functions"]:
                 f.write("CALLS {} {}\n".format(called_function["name"], called_function["object file"]))
 
-def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_limit, timeout, from_file, to_file):
+def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_limit, timeout, from_file, to_file, resume):
     print("Running plan")
     total_start = time.time()
 
@@ -32,11 +33,28 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
 
     if overview_log is None:
         overview_file = sys.stdout
+    elif not resume or not os.path.exists(overview_log):
+        overview_file = open(overview_log, "w")
     else:
-        add_newline = os.path.exists(overview_file)
+        with open(overview_log) as overview_file:
+            has_trailing_newline = True
+            last_file = 0
+
+            for line in overview_file:
+                has_trailing_newline = line.endswith("\n")
+                line = line.strip()
+                match = re.match(r"^Analysing object file #(\d+)/\d+: \S+ [^\-]* \- (.*)$", line)
+
+                if match is None:
+                    continue
+
+                last_file = int(match.group(1))
+
+        from_file = max(from_file, last_file + 1)
+
         overview_file = open(overview_log, "a")
 
-        if add_newline:
+        if not has_trailing_newline:
             overview_file.write("\n")
             overview_file.flush()
 
@@ -159,38 +177,44 @@ def main():
 
     parser.add_argument(
         "--heap",
-        help="Heap limit for cpachecker",
+        help="Heap limit for cpachecker.",
         default="1200M"
     )
 
     parser.add_argument(
         "--time",
-        help="Time limit for cpachecker",
+        help="Time limit for cpachecker.",
         default="900s"
     )
 
     parser.add_argument(
         "--timeout",
-        help="Timeout for cpachecker, in seconds",
+        help="Timeout for cpachecker, in seconds.",
         type=int,
         default=None
     )
 
     parser.add_argument(
         "--from-file",
-        help="Start from given index in plan",
+        help="Start from given index in plan.",
         type=int,
         default=1
     )
 
     parser.add_argument(
         "--to-file",
-        help="Stop after given index in plan",
+        help="Stop after given index in plan.",
         type=int)
+
+    parser.add_argument(
+        "--resume",
+        help="If log exists, continue where left off.",
+        default=False,
+        action="store_true")
 
     args = parser.parse_args()
     plan = load_plan(args.plan)
-    run(args.cpachecker, args.sources, args.annotations, plan, args.debug, args.log, args.heap, args.time, args.timeout, args.from_file, args.to_file)
+    run(args.cpachecker, args.sources, args.annotations, plan, args.debug, args.log, args.heap, args.time, args.timeout, args.from_file, args.to_file, args.resume)
 
 if __name__ == "__main__":
     main()
