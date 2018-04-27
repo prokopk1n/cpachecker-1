@@ -108,7 +108,7 @@ def join_annotations(annotations1, annotations2):
     print("For {} functions annotations complete each other".format(annotations_cross_improve))
     print("For {} functions param names or types mismatched".format(annotations_mismatch))
 
-    return joined_annotation
+    return joined_annotations
 
 def main():
     parser = argparse.ArgumentParser(
