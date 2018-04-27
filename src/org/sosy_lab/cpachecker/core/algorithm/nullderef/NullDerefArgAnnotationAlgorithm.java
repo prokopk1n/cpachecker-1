@@ -530,6 +530,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     writer.println("  MATCH ENTRY -> ASSUME {" + assumptions + "} GOTO Init;");
     writer.println("  MATCH DEREF {$1} -> DISTINCT SPLIT {$1 != (void *) 0} GOTO Init NEGATION ERROR;");
     writer.println(generateCallAutomatonEdges(pPlan, true));
+    writer.println(generateReturnAutomatonEdges(pPlan));
     writer.println("END AUTOMATON");
     writer.close();
     return fileName;
@@ -546,6 +547,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     writer.println("  MATCH EXIT -> ERROR;");
     writer.println("  MATCH DEREF {$1} -> ASSUME {$1 != (void *) 0} GOTO Init;");
     writer.println(generateCallAutomatonEdges(pPlan, false));
+    writer.println(generateReturnAutomatonEdges(pPlan));
     writer.println("END AUTOMATON");
     writer.close();
     return fileName;
