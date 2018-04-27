@@ -179,12 +179,16 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   private static class FunctionDerefAnnotation {
     public String name;
     public String retType;
+    public Boolean retTypeIsPointer;
+    public Boolean retMayBeNull;
     public ArrayList<ParameterDerefAnnotation> parameterAnnotations;
 
     public FunctionDerefAnnotation(String pName, String pRetType) {
       name = pName;
       retType = pRetType;
       parameterAnnotations = new ArrayList<>();
+      retTypeIsPointer = false;
+      retMayBeNull = false;
     }
   }
 
@@ -287,6 +291,9 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
           annotation.parameterAnnotations.add(new ParameterDerefAnnotation(
               parts[1], Boolean.parseBoolean(parts[2]),
               Boolean.parseBoolean(parts[3]), Boolean.parseBoolean(parts[4])));
+        } else if (parts[0].equals("RET")) {
+          annotation.retTypeIsPointer = Boolean.parseBoolean(parts[1]);
+          annotation.retMayBeNull = Boolean.parseBoolean(parts[2]);
         }
       }
     } catch (IOException e) {
@@ -307,6 +314,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       for (FunctionDerefAnnotation functionAnnotation : functionAnnotations.values()) {
         writer.println("FUNCTION " + functionAnnotation.name);
         writer.println(functionAnnotation.retType);
+        writer.println("RET " + functionAnnotation.retTypeIsPointer + " " + functionAnnotation.retMayBeNull);
 
         for (ParameterDerefAnnotation parameterAnnotation: functionAnnotation.parameterAnnotations) {
           writer.println("PARAM " + parameterAnnotation.name + " " + parameterAnnotation.isPointer +
