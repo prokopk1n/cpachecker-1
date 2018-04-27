@@ -363,9 +363,11 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
     try {
       if (functionAnnotation.retTypeIsPointer) {
-        if (mayReturnNull(pPlan)) {
+        if (mayReturnNull(pPlan, entryNode.getReturnVariable().get().getName())) {
           functionAnnotation.retMayBeNull = true;
         }
+
+        logger.log(Level.INFO, "New return pointer annotation in function " + pPlan.name + ": " + functionAnnotation.retMayBeNull);
       }
 
       for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
@@ -520,20 +522,21 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     return fileName;
   }
 
-  private String generateReturnNullPossibilitySpec(FunctionPlan pPlan) throws FileNotFoundException {
+  private String generateReturnNullPossibilitySpec(FunctionPlan pPlan, String pFunctionRetVar) throws FileNotFoundException {
     String fileName = distinctTempSpecNames ? ("may_return_null_" + pPlan.name + "_tmp.spc") : "may_return_null_tmp.spc";
     PrintWriter writer = new PrintWriter(fileName);
     writer.println("CONTROL AUTOMATON MAYRETURNNULL");
     writer.println("INITIAL STATE Init;");
     writer.println("STATE USEALL Init:");
-    writer.println("");
+
+    writer.println("  MATCH EXIT -> SPLIT {" + pFunctionRetVar + " != (void *) 0} GOTO Init NEGATION ERROR;");
     writer.println("END AUTOMATON");
     writer.close();
     return fileName;
   }
 
-  private Boolean mayReturnNull(FunctionPlan pPlan) throws FileNotFoundException {
-    return runWithSpecification(pPlan, generateReturnNullPossibilitySpec(pPlan), "May return null analysis");
+  private Boolean mayReturnNull(FunctionPlan pPlan, String pFunctionRetVar) throws FileNotFoundException {
+    return runWithSpecification(pPlan, generateReturnNullPossibilitySpec(pPlan, pFunctionRetVar), "May return null analysis");
 
   }
 
