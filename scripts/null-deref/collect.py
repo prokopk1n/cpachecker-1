@@ -42,6 +42,8 @@ def collect_annotations(km, annotations_dir):
                     annotation = {
                         "object file": object_file,
                         "signature": function_signature,
+                        "returns pointer": False,
+                        "may return null": False,
                         "params": []
                     }
 
@@ -62,6 +64,9 @@ def collect_annotations(km, annotations_dir):
                         param_annotation["must deref"] = must_deref
 
                     annotation["params"].append(param_annotation)
+                elif parts[0] == "RET":
+                    annotation["returns pointer"] = to_bool(parts[1])
+                    annotation["may return null"] = to_bool(parts[2])
 
     return annotations
 
