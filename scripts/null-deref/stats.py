@@ -30,8 +30,11 @@ def get_annotations_stats(annotations):
         "files": set(),
         "functions": 0,
         "functions_with_pointers": set(),
+        "functions_returning_pointers": set(),
         "parameters": 0,
         "pointers": 0,
+        "pointer returns": 0,
+        "may not return null": 0,
         "no deref": 0,
         "may deref": 0,
         "must deref": 0
@@ -41,6 +44,12 @@ def get_annotations_stats(annotations):
         for source_file, function in source_files.items():
             stats["functions"] += 1
             stats["files"].add(function["object file"])
+
+            if function["returns pointer"]:
+                stats["functions_returning_pointers"].add((name, source_file))
+
+                if not function["may return null"]:
+                    stats["may not return null"] += 1
 
             for parameter in function["params"]:
                 stats["parameters"] += 1
@@ -80,6 +89,7 @@ def main():
         annotations_stats["functions"], len(annotations_stats["files"]),
         plan_stats["functions"], len(plan_stats["files"])))
     print("{} functions have pointer parameters".format(len(annotations_stats["functions_with_pointers"])))
+    print("{} functions return a pointer".format(len(annotations_stats["functions_returning_pointers"])))
     print("Average number of functions in a file: {}".format(plan_stats["functions"] / len(plan_stats["files"])))
 
     plan = sorted(plan, key=lambda of: -len(of["functions"]))
@@ -91,6 +101,9 @@ def main():
 
     deps = sum(len(func["called functions"]) for of in plan for func in of["functions"])
     print("Total number of dependencies in plan: {}".format(deps))
+
+    print("{} out of {} returned pointers may not be NULL".format(
+        annotations_stats["may not return null"], len(annotations_stats["functions_returning_pointers"])))
 
     print("{} out of {} parameters are pointers".format(
         annotations_stats["pointers"], annotations_stats["parameters"]))
