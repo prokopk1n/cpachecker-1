@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import json
 import os
 import re
@@ -64,7 +65,11 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
             name = object_file_plan["object file"]
             path = os.path.join(sources, name, os.path.basename(name))
             log_dir = os.path.join(os.path.abspath(annotations), name)
-            overview_file.write("Analysing object file #{}/{}: {} ({} functions)".format(i + 1, len(plan), name, len(object_file_plan["functions"])))
+            start = time.time()
+            start_datetime = datetime.datetime.fromtimestamp(start)
+            overview_file.write("[{}] File #{}/{}: {} ({} functions)".format(
+                start_datetime.strftime("%Y-%m-%d %H:%M:%S"),
+                i + 1, len(plan), name, len(object_file_plan["functions"])))
             overview_file.flush()
 
             if not os.path.exists(path):
@@ -105,7 +110,6 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
                 f.write("RUN {}\n\n".format(" ".join(args)))
                 f.flush()
 
-                start = time.time()
                 popen = subprocess.Popen(args, cwd=cpachecker, stdout=f, stderr=subprocess.STDOUT, universal_newlines=True)
 
                 timed_out = False
