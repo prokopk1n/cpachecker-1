@@ -1,0 +1,24 @@
+File test.c
+Function f1
+int f1(int p)
+  Returns Signed MayBeNegative MayBePositive
+  Param p Other
+Function f2
+int f2(int p)
+  Returns Signed NotNegative MayBePositive
+  Param p Other
+Function f3
+int f3(int p)
+  Returns Signed MayBeNegative NotPositive
+  Param p Other
+Function f4
+int f4()
+  Returns Signed NotNegative NotPositive
+Function f5
+int f5(int p)
+  Returns Signed NotNegative MayBePositive
+  Param p Other
+Function f6
+int f6(int p)
+  Returns Signed MayBeNegative NotPositive
+  Param p Other
