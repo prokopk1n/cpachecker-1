@@ -47,6 +47,8 @@ import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.cfa.model.FunctionEntryNode;
 import org.sosy_lab.cpachecker.cfa.types.c.CFunctionType;
 import org.sosy_lab.cpachecker.cfa.types.c.CPointerType;
+import org.sosy_lab.cpachecker.cfa.types.c.CSimpleType;
+import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.core.CPABuilder;
 import org.sosy_lab.cpachecker.core.CPAcheckerResult.Result;
 import org.sosy_lab.cpachecker.core.algorithm.Algorithm;
@@ -392,7 +394,13 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     try (PrintWriter writer = new PrintWriter(fileName)) {
       writer.println("File " + objectFile);
 
-      for (FunctionDerefAnnotation functionAnnotation : functionAnnotations.values()) {
+      for (FunctionPlan plan : functionPlans) {
+        FunctionDerefAnnotation functionAnnotation = functionAnnotations.get(plan.name);
+
+        if (functionAnnotation == null) {
+          continue;
+        }
+
         writer.println("Function " + functionAnnotation.name);
         writer.println(functionAnnotation.signature);
         writer.println("  " + functionAnnotation.returnAnnotation.toString());
@@ -430,7 +438,9 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     FunctionDerefAnnotation functionAnnotation = new FunctionDerefAnnotation(pPlan.name, signature);
     ArrayList<ParameterDerefAnnotation> parameterAnnotations = functionAnnotation.parameterAnnotations;
 
-    functionAnnotation.returnAnnotation.isPointer = functionType.getReturnType() instanceof CPointerType;
+    CType canonicalReturnType = functionType.getReturnType().getCanonicalType();
+    functionAnnotation.returnAnnotation.isPointer = canonicalReturnType instanceof CPointerType;
+    functionAnnotation.returnAnnotation.isSigned = (canonicalReturnType instanceof CSimpleType) && (((CSimpleType) canonicalReturnType).isSigned());
 
     for (AParameterDeclaration parameterDeclaration : entryNode.getFunctionParameters()) {
       Boolean isPointer = parameterDeclaration.getType() instanceof CPointerType;
@@ -442,10 +452,14 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     cfa = cfa.getCopyWithMainFunction(entryNode);
 
     try {
+      String returnVariableName = entryNode.getReturnVariable().get().getName();
+
       if (functionAnnotation.returnAnnotation.isPointer) {
-        String returnVariableName = entryNode.getReturnVariable().get().getName();
         functionAnnotation.returnAnnotation.mayBeNull = mayReturnNull(pPlan, returnVariableName);
         functionAnnotation.returnAnnotation.mayBeError = mayReturnErr(pPlan, returnVariableName);
+      } else if (functionAnnotation.returnAnnotation.isSigned) {
+        functionAnnotation.returnAnnotation.mayBeNegative = mayReturnNegative(pPlan, returnVariableName);
+        functionAnnotation.returnAnnotation.mayBePositive = mayReturnPositive(pPlan, returnVariableName);
       }
 
       logger.log(Level.INFO, "New return annotation in function " + pPlan.name + ": " + functionAnnotation.returnAnnotation);
@@ -570,16 +584,28 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
         continue;
       }
 
-      if (annotation.returnAnnotation.isPointer && !annotation.returnAnnotation.mayBeNull) {
-        String parametersTemplate = "";
+      String parametersTemplate = "";
 
-        for (ParameterDerefAnnotation parameterAnnotation : annotation.parameterAnnotations) {
-          parametersTemplate = parametersTemplate.equals("") ? "$?" : (parametersTemplate + ", $?");
+      for (ParameterDerefAnnotation parameterAnnotation : annotation.parameterAnnotations) {
+        parametersTemplate = parametersTemplate.equals("") ? "$?" : (parametersTemplate + ", $?");
+      }
+
+      String callTemplate = dependencyName + "(" + parametersTemplate + ")";
+
+      if (annotation.returnAnnotation.isPointer) {
+        if (!annotation.returnAnnotation.mayBeNull) {
+          res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {$1 != (void *) 0} GOTO Init;";
         }
-
-        String callTemplate = dependencyName + "(" + parametersTemplate + ")";
-
-        res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {$1 != (void *) 0} GOTO Init;";
+      } else if (annotation.returnAnnotation.isSigned) {
+        if (!annotation.returnAnnotation.mayBeNegative) {
+          if (!annotation.returnAnnotation.mayBePositive) {
+            res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {$1 == 0} GOTO Init;";
+          } else {
+            res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {$1 >= 0} GOTO Init;";
+          }
+        } else if (!annotation.returnAnnotation.mayBePositive) {
+          res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {$1 <= 0} GOTO Init;";
+        }
       }
     }
 
@@ -655,12 +681,35 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     return fileName;
   }
 
+  private String generateReturnSignPossibilitySpec(FunctionPlan pPlan, String pFunctionRetVar, Boolean isMayBeNegative) throws FileNotFoundException {
+    String specName = isMayBeNegative ? "negative" : "positive";
+    String fileName = distinctTempSpecNames ? ("may_return_" + specName + "_" + pPlan.name + "_tmp.spc") : ("may_return_" + specName + "_tmp.spc");
+    PrintWriter writer = new PrintWriter(fileName);
+    writer.println("CONTROL AUTOMATON MAYRETURN" + specName.toUpperCase());
+    writer.println("INITIAL STATE Init;");
+    writer.println("STATE USEALL Init:");
+
+    writer.println("  MATCH EXIT -> SPLIT {" + pFunctionRetVar + " " + (isMayBeNegative ? ">=" : "<=") + " 0} GOTO Init NEGATION ERROR;");
+    writer.println(generateReturnAutomatonEdges(pPlan));
+    writer.println("END AUTOMATON");
+    writer.close();
+    return fileName;
+  }
+
   private Boolean mayReturnNull(FunctionPlan pPlan, String pFunctionRetVar) throws FileNotFoundException {
     return runWithSpecification(pPlan, generateReturnNullPossibilitySpec(pPlan, pFunctionRetVar), "May return null analysis");
   }
 
   private Boolean mayReturnErr(FunctionPlan pPlan, String pFunctionRetVar) throws FileNotFoundException {
     return runWithSpecification(pPlan, generateReturnErrPossibilitySpec(pPlan, pFunctionRetVar), "May return err analysis");
+  }
+
+  private Boolean mayReturnNegative(FunctionPlan pPlan, String pFunctionRetVar) throws FileNotFoundException {
+    return runWithSpecification(pPlan, generateReturnSignPossibilitySpec(pPlan, pFunctionRetVar, true), "May return negative analysis");
+  }
+
+  private Boolean mayReturnPositive(FunctionPlan pPlan, String pFunctionRetVar) throws FileNotFoundException {
+    return runWithSpecification(pPlan, generateReturnSignPossibilitySpec(pPlan, pFunctionRetVar, false), "May return positive analysis");
   }
 
   private Boolean mayDereferenceNull(FunctionPlan pPlan, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
