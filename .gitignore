@@ -1,3 +1,8 @@
+*~
+/null_deref_tests/*/annotations
+/*.aspect
+/*.spc
+
 # /
 /bin
 /build.properties
