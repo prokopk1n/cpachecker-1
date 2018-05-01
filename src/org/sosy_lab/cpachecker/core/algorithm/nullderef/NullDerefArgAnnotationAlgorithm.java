@@ -572,7 +572,8 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   }
 
   private String generateReturnAutomatonEdges(FunctionPlan pPlan) {
-    String res = "";
+    String res = "  MATCH RETURN {$1 = ERR_PTR($?)} -> ASSUME {$1 >= 18446744073709547521ULL} GOTO Init;";
+    res = res + "\n  MATCH RETURN {$1 = IS_ERR($2)} -> ASSUME {$1 == ($2 >= 18446744073709547521ULL)} GOTO Init;";
 
     for (Pair<String, String> dependency : pPlan.dependencies) {
       String dependencyName = dependency.getFirst();

@@ -1,0 +1,8 @@
+File test.c
+Function f1
+Function f2
+  Calls f1 test.c
+Function f3
+  Calls f2 test.c
+Function f4
+  Calls f3 test.c

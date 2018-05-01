@@ -1,0 +1,17 @@
+File test.c
+Function f1
+int * f1(int p)
+  Returns Pointer MayBeNull NotError
+  Param p Other
+Function f2
+int * f2(int p)
+  Returns Pointer MayBeNull NotError
+  Param p Other
+Function f3
+int * f3(int p)
+  Returns Pointer NotNull MayBeError
+  Param p Other
+Function f4
+int * f4(int p)
+  Returns Pointer MayBeNull NotError
+  Param p Other
