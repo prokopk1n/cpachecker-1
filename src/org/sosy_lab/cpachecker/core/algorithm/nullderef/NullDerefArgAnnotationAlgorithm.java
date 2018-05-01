@@ -600,7 +600,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
         }
 
         if (!annotation.returnAnnotation.mayBeError) {
-            String added_condition = "$1 < (void *) 18446744073709531137";
+            String added_condition = "$1 < (void *) 18446744073709531137ULL";
 
             if (condition == null) {
               condition = added_condition;
@@ -690,7 +690,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     writer.println("INITIAL STATE Init;");
     writer.println("STATE USEALL Init:");
 
-    writer.println("  MATCH EXIT -> SPLIT {" + pFunctionRetVar + " < (void *) 18446744073709547521} GOTO Init NEGATION ERROR;");
+    writer.println("  MATCH EXIT -> SPLIT {" + pFunctionRetVar + " < (void *) 18446744073709547521ULL} GOTO Init NEGATION ERROR;");
     writer.println(generateReturnAutomatonEdges(pPlan));
     writer.println("END AUTOMATON");
     writer.close();

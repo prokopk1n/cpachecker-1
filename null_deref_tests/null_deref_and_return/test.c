@@ -20,7 +20,7 @@ int *f4(int p) {
 
 int f5(int *p) {
     int v = (p == 0) ? 0 : *p;
-    int retp = f4(v);
+    int *retp = f4(v);
     int ret = *retp;
     return ret;
 }
