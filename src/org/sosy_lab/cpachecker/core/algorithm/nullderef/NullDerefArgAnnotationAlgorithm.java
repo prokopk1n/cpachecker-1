@@ -444,29 +444,16 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     try {
       if (functionAnnotation.returnAnnotation.isPointer) {
         String returnVariableName = entryNode.getReturnVariable().get().getName();
-
-        if (mayReturnNull(pPlan, returnVariableName)) {
-          functionAnnotation.returnAnnotation.mayBeNull = true;
-        }
-
-        if (mayReturnErr(pPlan, returnVariableName)) {
-          functionAnnotation.returnAnnotation.mayBeError = true;
-        }
-
-        logger.log(Level.INFO, "New return pointer annotation in function " + pPlan.name +
-            ": " + functionAnnotation.returnAnnotation);
+        functionAnnotation.returnAnnotation.mayBeNull = mayReturnNull(pPlan, returnVariableName);
+        functionAnnotation.returnAnnotation.mayBeError = mayReturnErr(pPlan, returnVariableName);
       }
+
+      logger.log(Level.INFO, "New return annotation in function " + pPlan.name + ": " + functionAnnotation.returnAnnotation);
 
       for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
         if (parameterAnnotation.isPointer) {
-          if (mayDereferenceNull(pPlan, parameterAnnotations, parameterAnnotation.name)) {
-            parameterAnnotation.mayBeDereferenced = true;
-          }
-
-          if (mustDereferenceNull(pPlan, parameterAnnotation.name)) {
-            parameterAnnotation.mustBeDereferenced = true;
-          }
-
+          parameterAnnotation.mayBeDereferenced = mayDereferenceNull(pPlan, parameterAnnotations, parameterAnnotation.name);
+          parameterAnnotation.mustBeDereferenced = mustDereferenceNull(pPlan, parameterAnnotation.name);
           logger.log(Level.INFO, "New parameter annotation in function " + pPlan.name + ": " + parameterAnnotation);
         }
       }
