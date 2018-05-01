@@ -159,38 +159,120 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     public Boolean mayBeDereferenced;
     public Boolean mustBeDereferenced;
 
-    public ParameterDerefAnnotation(String pName, Boolean pIsPointer, Boolean pMayBeDereferenced, Boolean pMustBeDereferenced) {
+    public ParameterDerefAnnotation(String pName, Boolean pIsPointer) {
       name = pName;
       isPointer = pIsPointer;
-      mayBeDereferenced = pMayBeDereferenced;
-      mustBeDereferenced = pMustBeDereferenced;
+      mayBeDereferenced = isPointer;
+      mustBeDereferenced = false;
+    }
+
+    public static ParameterDerefAnnotation load(String[] pParts) {
+      String name = pParts[1];
+
+      if (pParts[2].equals("Other")) {
+        return new ParameterDerefAnnotation(name, true);
+      }
+
+      ParameterDerefAnnotation annotation = new ParameterDerefAnnotation(name, false);
+
+      if (pParts[3].equals("MustDeref")) {
+        annotation.mayBeDereferenced = true;
+        annotation.mustBeDereferenced = true;
+      } else if (pParts[3].equals("NoDeref")) {
+        annotation.mayBeDereferenced = false;
+        annotation.mustBeDereferenced = false;
+      }
+
+      return annotation;
     }
 
     @Override
     public String toString() {
-      if (isPointer) {
-        return "Param *" + name + "(may deref: " + mayBeDereferenced + ", must deref: " + mustBeDereferenced + ")";
+      String res = "Param " + name;
+
+      if (!isPointer) {
+        return res + " Other";
+      }
+
+      res = res + " Pointer";
+
+      if (mustBeDereferenced) {
+        return res + " MustDeref";
+      } else if (mayBeDereferenced) {
+        return res + " MayDeref";
       } else {
-        return "Param " + name;
+        return res + " NoDeref";
       }
     }
   }
 
+  private static class ReturnAnnotation {
+    public Boolean isPointer;
+    public Boolean isSigned;
+    public Boolean mayBeNull;
+    public Boolean mayBeError;
+    public Boolean mayBeNegative;
+    public Boolean mayBePositive;
+
+    public ReturnAnnotation(Boolean pIsPointer, Boolean pIsSigned) {
+      isPointer = pIsPointer;
+      isSigned = pIsSigned;
+      mayBeNull = isPointer;
+      mayBeError = isPointer;
+      mayBeNegative = isSigned;
+      mayBePositive = isSigned;
+    }
+
+    public static ReturnAnnotation load(String pParts[]) {
+      ReturnAnnotation annotation;
+
+      if (pParts[1].equals("Pointer")) {
+        annotation = new ReturnAnnotation(true, false);
+        annotation.mayBeNull = pParts[2].equals("MayBeNull");
+        annotation.mayBeError = pParts[3].equals("MayBeError");
+      } else if (pParts[1].equals("Signed")) {
+        annotation = new ReturnAnnotation(false, true);
+        annotation.mayBeNegative = pParts[2].equals("MayBeNegative");
+        annotation.mayBePositive = pParts[3].equals("MayBePositive");
+      } else {
+        annotation = new ReturnAnnotation(false, false);
+      }
+
+      return annotation;
+    }
+
+    @Override
+    public String toString() {
+      String res = "Returns";
+
+      if (isPointer) {
+        res = res + " Pointer";
+        res = res + (mayBeNull ? " MayBeNull" : " NotNull");
+        res = res + (mayBeError ? " MayBeError" : " NotError");
+      } else if (isSigned) {
+        res = res + " Signed";
+        res = res + (mayBeNegative ? " MayBeNegative" : " NotNegative");
+        res = res + (mayBePositive ? " MayBePositive" : " NotPositive");
+      } else {
+        res = res + " Other";
+      }
+
+      return res;
+    }
+  }
+
+
   private static class FunctionDerefAnnotation {
     public String name;
-    public String retType;
-    public Boolean retTypeIsPointer;
-    public Boolean retMayBeNull;
-    public Boolean retMayBeErr;
+    public String signature;
+    public ReturnAnnotation returnAnnotation;
     public ArrayList<ParameterDerefAnnotation> parameterAnnotations;
 
-    public FunctionDerefAnnotation(String pName, String pRetType) {
+    public FunctionDerefAnnotation(String pName, String pSignature) {
       name = pName;
-      retType = pRetType;
+      signature = pSignature;
+      returnAnnotation = new ReturnAnnotation(false, false);
       parameterAnnotations = new ArrayList<>();
-      retTypeIsPointer = false;
-      retMayBeNull = false;
-      retMayBeErr = false;
     }
   }
 
@@ -248,14 +330,14 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       FunctionPlan functionPlan = null;
 
       while ((line = br.readLine()) != null) {
-        String[] parts = line.split(" ");
+        String[] parts = line.trim().split(" ");
 
-        if (parts[0].equals("FILE")) {
+        if (parts[0].equals("File")) {
           objectFile = parts[1];
-        } else if (parts[0].equals("FUNCTION")) {
+        } else if (parts[0].equals("Function")) {
           functionPlan = new FunctionPlan(parts[1]);
           functionPlans.add(functionPlan);
-        } else if (parts[0].equals("CALLS")) {
+        } else if (parts[0].equals("Calls")) {
           functionPlan.dependencies.add(Pair.of(parts[1], parts[2]));
         }
       }
@@ -284,19 +366,15 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       FunctionDerefAnnotation annotation = null;
 
       while ((line = br.readLine()) != null) {
-        String[] parts = line.split(" ");
+        String[] parts = line.trim().split(" ");
 
-        if (parts[0].equals("FUNCTION")) {
+        if (parts[0].equals("Function")) {
           annotation = new FunctionDerefAnnotation(parts[1], br.readLine());
           otherFunctionAnnotations.put(parts[1], annotation);
-        } else if (parts[0].equals("PARAM")) {
-          annotation.parameterAnnotations.add(new ParameterDerefAnnotation(
-              parts[1], Boolean.parseBoolean(parts[2]),
-              Boolean.parseBoolean(parts[3]), Boolean.parseBoolean(parts[4])));
-        } else if (parts[0].equals("RET")) {
-          annotation.retTypeIsPointer = Boolean.parseBoolean(parts[1]);
-          annotation.retMayBeNull = Boolean.parseBoolean(parts[2]);
-          annotation.retMayBeErr = Boolean.parseBoolean(parts[3]);
+        } else if (parts[0].equals("Param")) {
+          annotation.parameterAnnotations.add(ParameterDerefAnnotation.load(parts));
+        } else if (parts[0].equals("Returns")) {
+          annotation.returnAnnotation = ReturnAnnotation.load(parts);
         }
       }
     } catch (IOException e) {
@@ -312,17 +390,15 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     (new File(fileName)).getParentFile().mkdirs();
 
     try (PrintWriter writer = new PrintWriter(fileName)) {
-      writer.println("FILE " + objectFile);
+      writer.println("File " + objectFile);
 
       for (FunctionDerefAnnotation functionAnnotation : functionAnnotations.values()) {
-        writer.println("FUNCTION " + functionAnnotation.name);
-        writer.println(functionAnnotation.retType);
-        writer.println("RET " + functionAnnotation.retTypeIsPointer + " " + functionAnnotation.retMayBeNull +
-            " " + functionAnnotation.retMayBeErr);
+        writer.println("Function " + functionAnnotation.name);
+        writer.println(functionAnnotation.signature);
+        writer.println("  " + functionAnnotation.returnAnnotation.toString());
 
         for (ParameterDerefAnnotation parameterAnnotation: functionAnnotation.parameterAnnotations) {
-          writer.println("PARAM " + parameterAnnotation.name + " " + parameterAnnotation.isPointer +
-              " " + parameterAnnotation.mayBeDereferenced + " " + parameterAnnotation.mustBeDereferenced);
+          writer.println("  " + parameterAnnotation.toString());
         }
       }
 
@@ -350,36 +426,35 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     logger.log(Level.INFO, "Analysing function " + pPlan.name);
     FunctionEntryNode entryNode = cfa.getFunctionHead(pPlan.name);
     CFunctionType functionType = (CFunctionType) entryNode.getFunctionDefinition().getType();
-    String functionRetType = functionType.toASTString(pPlan.name);
-    FunctionDerefAnnotation functionAnnotation = new FunctionDerefAnnotation(pPlan.name, functionRetType);
+    String signature = functionType.toASTString(pPlan.name);
+    FunctionDerefAnnotation functionAnnotation = new FunctionDerefAnnotation(pPlan.name, signature);
     ArrayList<ParameterDerefAnnotation> parameterAnnotations = functionAnnotation.parameterAnnotations;
 
-    functionAnnotation.retTypeIsPointer = functionType.getReturnType() instanceof CPointerType;
+    functionAnnotation.returnAnnotation.isPointer = functionType.getReturnType() instanceof CPointerType;
 
     for (AParameterDeclaration parameterDeclaration : entryNode.getFunctionParameters()) {
       Boolean isPointer = parameterDeclaration.getType() instanceof CPointerType;
       ParameterDerefAnnotation parameterAnnotation = new ParameterDerefAnnotation(
-          parameterDeclaration.getName(), isPointer, false, false);
+          parameterDeclaration.getName(), isPointer);
       parameterAnnotations.add(parameterAnnotation);
     }
 
     cfa = cfa.getCopyWithMainFunction(entryNode);
 
     try {
-      if (functionAnnotation.retTypeIsPointer) {
+      if (functionAnnotation.returnAnnotation.isPointer) {
         String returnVariableName = entryNode.getReturnVariable().get().getName();
 
         if (mayReturnNull(pPlan, returnVariableName)) {
-          functionAnnotation.retMayBeNull = true;
+          functionAnnotation.returnAnnotation.mayBeNull = true;
         }
 
         if (mayReturnErr(pPlan, returnVariableName)) {
-          functionAnnotation.retMayBeErr = true;
+          functionAnnotation.returnAnnotation.mayBeError = true;
         }
 
         logger.log(Level.INFO, "New return pointer annotation in function " + pPlan.name +
-            ": (may return null: " + functionAnnotation.retMayBeNull + ", may return err: " +
-            functionAnnotation.retMayBeErr);
+            ": " + functionAnnotation.returnAnnotation);
       }
 
       for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
@@ -508,7 +583,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
         continue;
       }
 
-      if (annotation.retTypeIsPointer && !annotation.retMayBeNull) {
+      if (annotation.returnAnnotation.isPointer && !annotation.returnAnnotation.mayBeNull) {
         String parametersTemplate = "";
 
         for (ParameterDerefAnnotation parameterAnnotation : annotation.parameterAnnotations) {
