@@ -15,13 +15,13 @@ def load_plan(path):
 
 def write_object_file_plan(object_file_plan, object_file_plan_path):
     with open(object_file_plan_path, "w") as f:
-        f.write("FILE {}\n".format(object_file_plan["object file"]))
+        f.write("File {}\n".format(object_file_plan["object file"]))
 
         for function in object_file_plan["functions"]:
-            f.write("FUNCTION {}\n".format(function["name"]))
+            f.write("Function {}\n".format(function["name"]))
 
             for called_function in function["called functions"]:
-                f.write("CALLS {} {}\n".format(called_function["name"], called_function["object file"]))
+                f.write("  Calls {} {}\n".format(called_function["name"], called_function["object file"]))
 
 def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_limit, timeout, from_file, to_file, resume):
     print("Running plan")
