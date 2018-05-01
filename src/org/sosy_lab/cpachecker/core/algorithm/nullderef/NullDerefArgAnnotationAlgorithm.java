@@ -452,14 +452,16 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     cfa = cfa.getCopyWithMainFunction(entryNode);
 
     try {
-      String returnVariableName = entryNode.getReturnVariable().get().getName();
+      if (entryNode.getReturnVariable().isPresent()) {
+        String returnVariableName = entryNode.getReturnVariable().get().getName();
 
-      if (functionAnnotation.returnAnnotation.isPointer) {
-        functionAnnotation.returnAnnotation.mayBeNull = mayReturnNull(pPlan, returnVariableName);
-        functionAnnotation.returnAnnotation.mayBeError = mayReturnErr(pPlan, returnVariableName);
-      } else if (functionAnnotation.returnAnnotation.isSigned) {
-        functionAnnotation.returnAnnotation.mayBeNegative = mayReturnNegative(pPlan, returnVariableName);
-        functionAnnotation.returnAnnotation.mayBePositive = mayReturnPositive(pPlan, returnVariableName);
+        if (functionAnnotation.returnAnnotation.isPointer) {
+          functionAnnotation.returnAnnotation.mayBeNull = mayReturnNull(pPlan, returnVariableName);
+          functionAnnotation.returnAnnotation.mayBeError = mayReturnErr(pPlan, returnVariableName);
+        } else if (functionAnnotation.returnAnnotation.isSigned) {
+          functionAnnotation.returnAnnotation.mayBeNegative = mayReturnNegative(pPlan, returnVariableName);
+          functionAnnotation.returnAnnotation.mayBePositive = mayReturnPositive(pPlan, returnVariableName);
+        }
       }
 
       logger.log(Level.INFO, "New return annotation in function " + pPlan.name + ": " + functionAnnotation.returnAnnotation);
