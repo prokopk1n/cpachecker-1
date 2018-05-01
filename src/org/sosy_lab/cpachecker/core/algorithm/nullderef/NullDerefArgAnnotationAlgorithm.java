@@ -592,20 +592,36 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
       String callTemplate = dependencyName + "(" + parametersTemplate + ")";
 
+      String condition = null;
+
       if (annotation.returnAnnotation.isPointer) {
         if (!annotation.returnAnnotation.mayBeNull) {
-          res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {$1 != (void *) 0} GOTO Init;";
+          condition = "$1 != (void *) 0";
+        }
+
+        if (!annotation.returnAnnotation.mayBeError) {
+            String added_condition = "$1 < (void *) 18446744073709531137";
+
+            if (condition == null) {
+              condition = added_condition;
+            } else {
+              condition = "(" + condition + ") && (" + added_condition + ")";
+            }
         }
       } else if (annotation.returnAnnotation.isSigned) {
         if (!annotation.returnAnnotation.mayBeNegative) {
           if (!annotation.returnAnnotation.mayBePositive) {
-            res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {$1 == 0} GOTO Init;";
+            condition = "$1 == 0";
           } else {
-            res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {$1 >= 0} GOTO Init;";
+            condition = "$1 >= 0";
           }
         } else if (!annotation.returnAnnotation.mayBePositive) {
-          res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {$1 <= 0} GOTO Init;";
+          condition = "$1 <= 0";
         }
+      }
+
+      if (condition != null) {
+        res = res + "\n  MATCH RETURN {$1 = " + callTemplate + "} -> ASSUME {" + condition + "} GOTO Init;";
       }
     }
 
@@ -674,7 +690,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     writer.println("INITIAL STATE Init;");
     writer.println("STATE USEALL Init:");
 
-    writer.println("  MATCH EXIT -> SPLIT {(unsigned long) " + pFunctionRetVar + " >= (unsigned long) -4095} GOTO Init NEGATION ERROR;");
+    writer.println("  MATCH EXIT -> SPLIT {" + pFunctionRetVar + " < (void *) 18446744073709547521} GOTO Init NEGATION ERROR;");
     writer.println(generateReturnAutomatonEdges(pPlan));
     writer.println("END AUTOMATON");
     writer.close();
