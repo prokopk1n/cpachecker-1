@@ -181,6 +181,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     public String retType;
     public Boolean retTypeIsPointer;
     public Boolean retMayBeNull;
+    public Boolean retMayBeErr;
     public ArrayList<ParameterDerefAnnotation> parameterAnnotations;
 
     public FunctionDerefAnnotation(String pName, String pRetType) {
@@ -189,6 +190,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       parameterAnnotations = new ArrayList<>();
       retTypeIsPointer = false;
       retMayBeNull = false;
+      retMayBeErr = false;
     }
   }
 
@@ -294,6 +296,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
         } else if (parts[0].equals("RET")) {
           annotation.retTypeIsPointer = Boolean.parseBoolean(parts[1]);
           annotation.retMayBeNull = Boolean.parseBoolean(parts[2]);
+          annotation.retMayBeErr = Boolean.parseBoolean(parts[3]);
         }
       }
     } catch (IOException e) {
@@ -314,7 +317,8 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       for (FunctionDerefAnnotation functionAnnotation : functionAnnotations.values()) {
         writer.println("FUNCTION " + functionAnnotation.name);
         writer.println(functionAnnotation.retType);
-        writer.println("RET " + functionAnnotation.retTypeIsPointer + " " + functionAnnotation.retMayBeNull);
+        writer.println("RET " + functionAnnotation.retTypeIsPointer + " " + functionAnnotation.retMayBeNull +
+            " " + functionAnnotation.retMayBeErr);
 
         for (ParameterDerefAnnotation parameterAnnotation: functionAnnotation.parameterAnnotations) {
           writer.println("PARAM " + parameterAnnotation.name + " " + parameterAnnotation.isPointer +
@@ -363,11 +367,19 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
     try {
       if (functionAnnotation.retTypeIsPointer) {
-        if (mayReturnNull(pPlan, entryNode.getReturnVariable().get().getName())) {
+        String returnVariableName = entryNode.getReturnVariable().get().getName();
+
+        if (mayReturnNull(pPlan, returnVariableName)) {
           functionAnnotation.retMayBeNull = true;
         }
 
-        logger.log(Level.INFO, "New return pointer annotation in function " + pPlan.name + ": " + functionAnnotation.retMayBeNull);
+        if (mayReturnErr(pPlan, returnVariableName)) {
+          functionAnnotation.retMayBeErr = true;
+        }
+
+        logger.log(Level.INFO, "New return pointer annotation in function " + pPlan.name +
+            ": (may return null: " + functionAnnotation.retMayBeNull + ", may return err: " +
+            functionAnnotation.retMayBeErr);
       }
 
       for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
@@ -567,9 +579,26 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     return fileName;
   }
 
+  private String generateReturnErrPossibilitySpec(FunctionPlan pPlan, String pFunctionRetVar) throws FileNotFoundException {
+    String fileName = distinctTempSpecNames ? ("may_return_err_" + pPlan.name + "_tmp.spc") : "may_return_err_tmp.spc";
+    PrintWriter writer = new PrintWriter(fileName);
+    writer.println("CONTROL AUTOMATON MAYRETURNERR");
+    writer.println("INITIAL STATE Init;");
+    writer.println("STATE USEALL Init:");
+
+    writer.println("  MATCH EXIT -> SPLIT {(unsigned long) " + pFunctionRetVar + " >= (unsigned long) -4095} GOTO Init NEGATION ERROR;");
+    writer.println(generateReturnAutomatonEdges(pPlan));
+    writer.println("END AUTOMATON");
+    writer.close();
+    return fileName;
+  }
+
   private Boolean mayReturnNull(FunctionPlan pPlan, String pFunctionRetVar) throws FileNotFoundException {
     return runWithSpecification(pPlan, generateReturnNullPossibilitySpec(pPlan, pFunctionRetVar), "May return null analysis");
+  }
 
+  private Boolean mayReturnErr(FunctionPlan pPlan, String pFunctionRetVar) throws FileNotFoundException {
+    return runWithSpecification(pPlan, generateReturnErrPossibilitySpec(pPlan, pFunctionRetVar), "May return err analysis");
   }
 
   private Boolean mayDereferenceNull(FunctionPlan pPlan, List<ParameterDerefAnnotation> pParameterAnnotations, String pNullParameter) throws FileNotFoundException {
