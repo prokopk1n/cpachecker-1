@@ -40,16 +40,17 @@ def assign_functions_to_object_files(candidate_object_files, function_graph):
 
     function_to_object_file = {}
     object_file_graph = {}
+    object_file_to_num_functions = {}
 
-    for function in random_order(function_graph):
+    for function in reverse_postorder(reversed_function_graph):
         name, file = function
         candidates = candidate_object_files[file]
         filtered_candidates = [candidate for candidate in candidates if os.path.basename(candidate) != "a.out"]
 
         if len(filtered_candidates) > 0:
-            selected = filtered_candidates[0]
-        else:
-            selected = candidates[0]
+            candidates = filtered_candidates
+
+        selected = max(candidates, key=lambda candidate: object_file_to_num_functions.get(candidate, 0))
 
         immediately_depending_object_files = []
 
@@ -73,6 +74,7 @@ def assign_functions_to_object_files(candidate_object_files, function_graph):
                 object_file_graph.setdefault(object_file, set()).add(selected)
 
         function_to_object_file[function] = selected
+        object_file_to_num_functions[selected] = object_file_to_num_functions.get(selected, 0) + 1
 
     return function_to_object_file, object_file_graph
 
@@ -200,6 +202,7 @@ def main():
     best_plan = None
 
     for attempt in range(args.attempts):
+        sys.stdout.flush()
         plan, stats = make_plan(preplan)
         dropped_deps = stats["dropped"]
 
@@ -210,7 +213,6 @@ def main():
 
         sys.stdout.write("\rBest plan after {} attempts: {} functions in {} object files, {} dropped interprocedural dependencies out of {} ({:.4f}%)".format(
                 attempt + 1, best_stats["functions"], best_stats["object files"], best_stats["dropped"], best_stats["calls"], best_stats["dropped"] / best_stats["calls"] * 100))
-        sys.stdout.flush()
 
     print()
     save_plan(best_plan, args.plan)
