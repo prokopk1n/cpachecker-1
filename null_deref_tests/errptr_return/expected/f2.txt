@@ -1,0 +1,5 @@
+File test.c
+Function f2
+int * f2(int p)
+  Returns Pointer MayBeNull NotError
+  Param p Other

@@ -1,0 +1,5 @@
+File test.c
+Function f5
+int f5(int *p)
+  Returns Signed MayBeNegative MayBePositive
+  Param p Pointer NoDeref

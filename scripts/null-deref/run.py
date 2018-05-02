@@ -64,7 +64,7 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
             object_file_plan = plan[i]
             name = object_file_plan["object file"]
             path = os.path.join(sources, name, os.path.basename(name))
-            log_dir = os.path.join(os.path.abspath(annotations), name)
+            file_dir = os.path.join(os.path.abspath(annotations), name)
             start = time.time()
             start_datetime = datetime.datetime.fromtimestamp(start)
             overview_file.write("[{}] File #{}/{}: {} ({} functions)".format(
@@ -78,7 +78,10 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
                 errors += 1
                 continue
 
-            object_file_plan_path = "object_file_plan.txt"
+            if not os.path.exists(file_dir):
+                os.makedirs(file_dir)
+
+            object_file_plan_path = os.path.join(file_dir, "object_file_plan.txt")
             write_object_file_plan(object_file_plan, object_file_plan_path)
 
             args = [
@@ -101,10 +104,7 @@ def run(cpachecker, sources, annotations, plan, debug, overview_log, heap, time_
                     "-setprop", "log.consoleExclude=CONFIG"
                 ])
 
-            if not os.path.exists(log_dir):
-                os.makedirs(log_dir)
-
-            log_path = os.path.join(log_dir, "log.txt")
+            log_path = os.path.join(file_dir, "log.txt")
 
             with open(log_path, "w") as f:
                 f.write("RUN {}\n\n".format(" ".join(args)))

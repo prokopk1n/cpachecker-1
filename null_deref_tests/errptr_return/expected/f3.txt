@@ -1,0 +1,5 @@
+File test.c
+Function f3
+int * f3(int p)
+  Returns Pointer NotNull MayBeError
+  Param p Other

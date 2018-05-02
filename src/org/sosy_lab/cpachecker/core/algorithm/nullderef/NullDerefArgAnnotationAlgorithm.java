@@ -297,7 +297,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   private String objectFile;
   private List<FunctionPlan> functionPlans;
   private Map<String, FunctionDerefAnnotation> functionAnnotations;
-  private Map<String, Map<String, FunctionDerefAnnotation>> otherObjectFileFunctionAnnotations;
+  private Map<String, Map<String, FunctionDerefAnnotation>> objectFileFunctionAnnotations;
 
   @Option(secure = true, name = "plan", description = "Path to file with analysis plan")
   private String planPath;
@@ -321,7 +321,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     this.cfa = pCfa;
     this.globalConfig = config;
     this.functionAnnotations = new HashMap<>();
-    this.otherObjectFileFunctionAnnotations = new HashMap<>();
+    this.objectFileFunctionAnnotations = new HashMap<>();
   }
 
   private void loadPlan() {
@@ -343,36 +343,41 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
           functionPlan.dependencies.add(Pair.of(parts[1], parts[2]));
         }
       }
-  } catch (IOException e) {
-    // TODO: ???
-    e.printStackTrace();
+    } catch (IOException e) {
+      // TODO: ???
+      e.printStackTrace();
+    }
   }
 
-  }
-
-  private String getAnnotationFilePath(String pObjectFile) {
-    return Paths.get(annotationDirectory, pObjectFile, "deref_annotation.txt").toString();
+  private String getAnnotationFilePath(String pFunctionName, String pObjectFile) {
+    return Paths.get(annotationDirectory, pObjectFile, "functions", pFunctionName + ".txt").toString();
   }
 
   private FunctionDerefAnnotation getFunctionAnnotation(String pDependencyName, String pDependencyObjectFile) {
-    if (pDependencyObjectFile.equals(objectFile)) {
-      return functionAnnotations.get(pDependencyName);
-    } else if (otherObjectFileFunctionAnnotations.containsKey(pDependencyObjectFile)) {
-      return otherObjectFileFunctionAnnotations.get(pDependencyObjectFile).get(pDependencyName);
+    Map<String, FunctionDerefAnnotation> fileAnnotations;
+
+    if (objectFileFunctionAnnotations.containsKey(pDependencyObjectFile)) {
+      fileAnnotations = objectFileFunctionAnnotations.get(pDependencyObjectFile);
+    } else {
+      fileAnnotations = new HashMap<>();
+      objectFileFunctionAnnotations.put(pDependencyObjectFile, fileAnnotations);
     }
 
-    HashMap<String, FunctionDerefAnnotation> otherFunctionAnnotations = new HashMap<>();
+    if (fileAnnotations.containsKey(pDependencyName)) {
+      return fileAnnotations.get(pDependencyName);
+    }
 
-    try (BufferedReader br = new BufferedReader(new FileReader(getAnnotationFilePath(pDependencyObjectFile)))) {
+    String annotationFilePath = getAnnotationFilePath(pDependencyName, pDependencyObjectFile);
+    FunctionDerefAnnotation annotation = null;
+
+    try (BufferedReader br = new BufferedReader(new FileReader(annotationFilePath))) {
       String line;
-      FunctionDerefAnnotation annotation = null;
 
       while ((line = br.readLine()) != null) {
         String[] parts = line.trim().split(" ");
 
         if (parts[0].equals("Function")) {
           annotation = new FunctionDerefAnnotation(parts[1], br.readLine());
-          otherFunctionAnnotations.put(parts[1], annotation);
         } else if (parts[0].equals("Param")) {
           annotation.parameterAnnotations.add(ParameterDerefAnnotation.load(parts));
         } else if (parts[0].equals("Returns")) {
@@ -380,34 +385,29 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
         }
       }
     } catch (IOException e) {
-      logger.log(Level.INFO, "Could not read annotations from " + getAnnotationFilePath(pDependencyObjectFile));
+      logger.log(Level.INFO, "Could not read annotations from " + annotationFilePath);
     }
 
-    otherObjectFileFunctionAnnotations.put(pDependencyObjectFile, otherFunctionAnnotations);
-    return otherFunctionAnnotations.get(pDependencyName);
+    fileAnnotations.put(pDependencyName, annotation);
+    return annotation;
   }
 
-  private void saveAnnotations() {
-    String fileName = getAnnotationFilePath(objectFile);
-    (new File(fileName)).getParentFile().mkdirs();
+  private void saveAnnotation(String pFunctionName) {
+    String annotationFilePath = getAnnotationFilePath(pFunctionName, objectFile);
 
-    try (PrintWriter writer = new PrintWriter(fileName)) {
+    (new File(annotationFilePath)).getParentFile().mkdirs();
+
+    try (PrintWriter writer = new PrintWriter(annotationFilePath)) {
       writer.println("File " + objectFile);
 
-      for (FunctionPlan plan : functionPlans) {
-        FunctionDerefAnnotation functionAnnotation = functionAnnotations.get(plan.name);
+      FunctionDerefAnnotation functionAnnotation = functionAnnotations.get(pFunctionName);
 
-        if (functionAnnotation == null) {
-          continue;
-        }
+      writer.println("Function " + functionAnnotation.name);
+      writer.println(functionAnnotation.signature);
+      writer.println("  " + functionAnnotation.returnAnnotation.toString());
 
-        writer.println("Function " + functionAnnotation.name);
-        writer.println(functionAnnotation.signature);
-        writer.println("  " + functionAnnotation.returnAnnotation.toString());
-
-        for (ParameterDerefAnnotation parameterAnnotation: functionAnnotation.parameterAnnotations) {
-          writer.println("  " + parameterAnnotation.toString());
-        }
+      for (ParameterDerefAnnotation parameterAnnotation: functionAnnotation.parameterAnnotations) {
+        writer.println("  " + parameterAnnotation.toString());
       }
 
       writer.close();
@@ -421,10 +421,11 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   public AlgorithmStatus run(ReachedSet pReached) throws CPAException, InterruptedException {
     loadPlan();
     logger.log(Level.INFO, "Analysing object file " + objectFile);
+    objectFileFunctionAnnotations.put(objectFile, functionAnnotations);
 
     for (FunctionPlan plan : functionPlans) {
       runFunction(plan);
-      saveAnnotations();
+      saveAnnotation(plan.name);
     }
 
     return AlgorithmStatus.UNSOUND_AND_PRECISE;

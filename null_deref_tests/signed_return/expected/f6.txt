@@ -1,0 +1,5 @@
+File test.c
+Function f6
+int f6(int p)
+  Returns Signed MayBeNegative NotPositive
+  Param p Other

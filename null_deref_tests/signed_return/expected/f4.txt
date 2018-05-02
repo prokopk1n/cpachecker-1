@@ -1,0 +1,4 @@
+File test.c
+Function f4
+int f4()
+  Returns Signed NotNegative NotPositive

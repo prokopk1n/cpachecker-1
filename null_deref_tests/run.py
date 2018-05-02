@@ -16,8 +16,8 @@ def run_test(name):
     source = os.path.join(test_dir, "test.c")
     annotations = os.path.join(test_dir, "annotations")
     plan = os.path.join(test_dir, "plan.txt")
-    expected = os.path.join(test_dir, "expected.txt")
-    actual = os.path.join(annotations, "test.c", "deref_annotation.txt")
+    expected = os.path.join(test_dir, "expected")
+    actual = os.path.join(annotations, "test.c", "functions")
 
     if os.path.exists(annotations):
         shutil.rmtree(annotations)
@@ -35,7 +35,7 @@ def run_test(name):
             "-setprop", "nullDerefArgAnnotationAlgorithm.plan={}".format(plan),
         ])
 
-        subprocess.check_call(["diff", expected, actual])
+        subprocess.check_call(["diff", "-r", expected, actual])
     except subprocess.CalledProcessError:
         ok = False
 
