@@ -302,8 +302,11 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   @Option(secure = true, name = "plan", description = "Path to file with analysis plan")
   private String planPath;
 
-  @Option(secure = true, name = "annotationDirectory", description = "Path to annotation directory root")
-  private String annotationDirectory;
+  @Option(secure = true, name = "readAnnotationDirectory", description = "Path to existing annotation directory root")
+  private String readAnnotationDirectory;
+
+  @Option(secure = true, name = "writeAnnotationDirectory", description = "Path to annotation directory root used for saving")
+  private String writeAnnotationDirectory;
 
   @Option(secure = true, name = "distinctTempSpecNames", description = "Use distinct names for all temporary spec files")
   private boolean distinctTempSpecNames = false;
@@ -349,7 +352,8 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     }
   }
 
-  private String getAnnotationFilePath(String pFunctionName, String pObjectFile) {
+  private String getAnnotationFilePath(String pFunctionName, String pObjectFile, Boolean pIsRead) {
+    String annotationDirectory = (pIsRead || (writeAnnotationDirectory == null)) ? readAnnotationDirectory : writeAnnotationDirectory;
     return Paths.get(annotationDirectory, pObjectFile, "functions", pFunctionName + ".txt").toString();
   }
 
@@ -367,7 +371,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       return fileAnnotations.get(pDependencyName);
     }
 
-    String annotationFilePath = getAnnotationFilePath(pDependencyName, pDependencyObjectFile);
+    String annotationFilePath = getAnnotationFilePath(pDependencyName, pDependencyObjectFile, true);
     FunctionDerefAnnotation annotation = null;
 
     try (BufferedReader br = new BufferedReader(new FileReader(annotationFilePath))) {
@@ -393,7 +397,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
   }
 
   private void saveAnnotation(String pFunctionName) {
-    String annotationFilePath = getAnnotationFilePath(pFunctionName, objectFile);
+    String annotationFilePath = getAnnotationFilePath(pFunctionName, objectFile, false);
 
     (new File(annotationFilePath)).getParentFile().mkdirs();
 

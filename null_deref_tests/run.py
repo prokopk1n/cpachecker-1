@@ -30,7 +30,7 @@ def run_test(name):
             "-config", "config/ldv-deref.properties",
             "-spec", "config/specification/default.spc",
             source,
-            "-setprop", "nullDerefArgAnnotationAlgorithm.annotationDirectory={}".format(annotations),
+            "-setprop", "nullDerefArgAnnotationAlgorithm.writeAnnotationDirectory={}".format(annotations),
             "-setprop", "analysis.entryFunction=f1",
             "-setprop", "nullDerefArgAnnotationAlgorithm.plan={}".format(plan),
         ])
