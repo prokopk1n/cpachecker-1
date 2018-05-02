@@ -35,24 +35,22 @@ def collect_annotations(km, annotations_dir):
             for line in f:
                 parts = line.split()
 
-                if parts[0] == "FUNCTION":
+                if parts[0] == "Function":
                     function_name = parts[1]
                     function_signature = next(f).strip()
                     source_file = get_source_file(km, object_file, function_name)
                     annotation = {
                         "object file": object_file,
                         "signature": function_signature,
+                        "params": [],
                         "returns pointer": False,
-                        "may return null": False,
-                        "params": []
+                        "returns signed": False
                     }
 
                     annotations.setdefault(function_name, {})[source_file] = annotation
-                elif parts[0] == "PARAM":
+                elif parts[0] == "Param":
                     param_name = parts[1]
-                    is_pointer = to_bool(parts[2])
-                    may_deref = to_bool(parts[3])
-                    must_deref = to_bool(parts[4])
+                    is_pointer = parts[2] == "Pointer"
 
                     param_annotation = {
                         "name": param_name,
@@ -60,13 +58,26 @@ def collect_annotations(km, annotations_dir):
                     }
 
                     if is_pointer:
-                        param_annotation["may deref"] = may_deref
-                        param_annotation["must deref"] = must_deref
+                        if parts[3] == "MustDeref":
+                            param_annotation["may deref"] = True
+                            param_annotation["must deref"] = True
+                        elif parts[3] == "MayDeref":
+                            param_annotation["may deref"] = True
+                            param_annotation["must deref"] = False
+                        else:
+                            param_annotation["may deref"] = False
+                            param_annotation["must deref"] = False
 
                     annotation["params"].append(param_annotation)
-                elif parts[0] == "RET":
-                    annotation["returns pointer"] = to_bool(parts[1])
-                    annotation["may return null"] = to_bool(parts[2])
+                elif parts[0] == "Returns":
+                    if parts[1] == "Pointer":
+                        annotation["returns pointer"] = True
+                        annotation["may return null"] = parts[2] == "MayBeNull"
+                        annotation["may return errptr"] = parts[3] == "MayBeError"
+                    elif parts[1] == "Signed":
+                        annotation["returns signed"] = True
+                        annotation["may return negative"] = parts[2] == "MayBeNegative"
+                        annotation["may return positive"] = parts[3] == "MayBePositive"
 
     return annotations
 
