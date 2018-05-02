@@ -468,8 +468,14 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
       for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
         if (parameterAnnotation.isPointer) {
-          parameterAnnotation.mayBeDereferenced = mayDereferenceNull(pPlan, parameterAnnotations, parameterAnnotation.name);
           parameterAnnotation.mustBeDereferenced = mustDereferenceNull(pPlan, parameterAnnotation.name);
+
+          if (parameterAnnotation.mustBeDereferenced) {
+            parameterAnnotation.mayBeDereferenced = true;
+          } else {
+            parameterAnnotation.mayBeDereferenced = mayDereferenceNull(pPlan, parameterAnnotations, parameterAnnotation.name);
+          }
+
           logger.log(Level.INFO, "New parameter annotation in function " + pPlan.name + ": " + parameterAnnotation);
         }
       }
