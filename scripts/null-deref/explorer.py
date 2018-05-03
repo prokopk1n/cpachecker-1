@@ -106,7 +106,7 @@ def show_annotations(annotation_list):
 def show_help():
     print("  -f <function>    Show function info")
     print("  -o <object file> Show object file info")
-    print("  -s <function>    Show source file info")
+    print("  -s <source file> Show source file info")
     print("  -h               Show this help")
     print("  -q               Quit")
 
