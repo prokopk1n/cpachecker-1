@@ -168,6 +168,25 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       mustBeDereferenced = false;
     }
 
+    public ParameterDerefAnnotation update(ParameterDerefAnnotation other) {
+      if (!name.equals(other)) {
+        return this;
+      }
+
+      if (isPointer) {
+        if (!other.isPointer) {
+          return this;
+        }
+
+        ParameterDerefAnnotation res = new ParameterDerefAnnotation(name, true);
+        res.mayBeDereferenced = mayBeDereferenced && other.mayBeDereferenced;
+        res.mustBeDereferenced = mustBeDereferenced || other.mustBeDereferenced;
+        return res;
+      }
+
+      return this;
+    }
+
     public static ParameterDerefAnnotation load(String[] pParts) {
       String name = pParts[1];
 
@@ -225,6 +244,30 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       mayBePositive = isSigned;
     }
 
+    public ReturnAnnotation update(ReturnAnnotation other) {
+      if (isPointer) {
+        if (!other.isPointer) {
+          return this;
+        }
+
+        ReturnAnnotation res = new ReturnAnnotation(true, false);
+        res.mayBeNull = mayBeNull && other.mayBeNull;
+        res.mayBeError = mayBeError && other.mayBeError;
+        return res;
+      } else if (isSigned) {
+        if (!other.isSigned) {
+          return this;
+        }
+
+        ReturnAnnotation res = new ReturnAnnotation(false, true);
+        res.mayBeNegative = mayBeNegative && other.mayBeNegative;
+        res.mayBePositive = mayBePositive && other.mayBePositive;
+        return res;
+      } else {
+        return this;
+      }
+    }
+
     public static ReturnAnnotation load(String pParts[]) {
       ReturnAnnotation annotation;
 
@@ -275,6 +318,21 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
       signature = pSignature;
       returnAnnotation = new ReturnAnnotation(false, false);
       parameterAnnotations = new ArrayList<>();
+    }
+
+    public FunctionDerefAnnotation update(FunctionDerefAnnotation other) {
+      if (!other.name.equals(name) || !other.signature.equals(signature) || parameterAnnotations.size() != other.parameterAnnotations.size()) {
+        return this;
+      }
+
+      FunctionDerefAnnotation res = new FunctionDerefAnnotation(name, signature);
+      res.returnAnnotation = returnAnnotation.update(other.returnAnnotation);
+
+      for (int i = 0; i < parameterAnnotations.size(); i++) {
+        res.parameterAnnotations.add(parameterAnnotations.get(i).update(other.parameterAnnotations.get(i)));
+      }
+
+      return res;
     }
   }
 
@@ -396,16 +454,22 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
     return annotation;
   }
 
-  private void saveAnnotation(String pFunctionName) {
-    String annotationFilePath = getAnnotationFilePath(pFunctionName, objectFile, false);
+  private void saveAnnotation(FunctionDerefAnnotation functionAnnotation) {
+    String functionName = functionAnnotation.name;
+    FunctionDerefAnnotation existingAnnotation = getFunctionAnnotation(functionName, objectFile);
+
+    if (existingAnnotation != null) {
+      functionAnnotation = functionAnnotation.update(existingAnnotation);
+    }
+
+    functionAnnotations.put(functionName, functionAnnotation);
+
+    String annotationFilePath = getAnnotationFilePath(functionName, objectFile, false);
 
     (new File(annotationFilePath)).getParentFile().mkdirs();
 
     try (PrintWriter writer = new PrintWriter(annotationFilePath)) {
       writer.println("File " + objectFile);
-
-      FunctionDerefAnnotation functionAnnotation = functionAnnotations.get(pFunctionName);
-
       writer.println("Function " + functionAnnotation.name);
       writer.println(functionAnnotation.signature);
       writer.println("  " + functionAnnotation.returnAnnotation.toString());
@@ -429,7 +493,6 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
     for (FunctionPlan plan : functionPlans) {
       runFunction(plan);
-      saveAnnotation(plan.name);
     }
 
     return AlgorithmStatus.UNSOUND_AND_PRECISE;
@@ -485,7 +548,7 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
         }
       }
 
-      functionAnnotations.put(pPlan.name, functionAnnotation);
+      saveAnnotation(functionAnnotation);
     } catch (FileNotFoundException e) {
       // TODO ???
       e.printStackTrace();
