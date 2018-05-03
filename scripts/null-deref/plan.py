@@ -130,21 +130,25 @@ def assemble_plan(function_graph, function_to_object_file, object_file_order, ob
         }
 
         for function in object_file_to_function_order[object_file]:
+            name, file = function
             called_functions = []
 
             for called_function in function_graph[function]:
+                called_name, called_file = called_function
                 calls += 1
 
                 called_functions.append({
-                        "name": called_function[0],
-                        "object file": function_to_object_file[called_function]
-                    })
+                    "name": called_name,
+                    "source file": called_file,
+                    "object file": function_to_object_file[called_function]
+                })
 
                 if called_function not in processed_functions:
                     dropped += 1
 
             object_file_plan["functions"].append({
-                "name": function[0],
+                "name": name,
+                "source file": file,
                 "called functions": called_functions
             })
 
