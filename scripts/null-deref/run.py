@@ -125,6 +125,9 @@ class Runner:
         self.functions[function] = status
 
     def collect_new_annotations(self, file_plan):
+        new = 0
+        stale = 0
+        missing = 0
         object_file = file_plan["object file"]
 
         new_functions_dir = os.path.join(self.new_annotations, object_file, "functions")
@@ -141,6 +144,7 @@ class Runner:
 
             if not os.path.exists(new_path):
                 self.set_status(function, "error")
+                missing += 1
                 continue
 
             if os.path.exists(old_path):
@@ -150,14 +154,22 @@ class Runner:
                 with open(new_path) as f:
                     new_annotation = f.read()
 
-                self.set_status(function, "stale" if new_annotation == old_annotation else "new")
+                if new_annotation == old_annotation:
+                    self.set_status(function, "stale")
+                    stale += 1
+                else:
+                    self.set_status(function, "new")
+                    new += 1
             else:
                 self.set_status(function, "new")
+                new += 1
 
             os.replace(new_path, old_path)
 
         if os.path.exists(new_functions_dir) and not os.listdir(new_functions_dir):
             os.rmdir(new_functions_dir)
+
+        return new, stale, missing
 
     def run_cpachecker(self, file_plan):
         name = file_plan["object file"]
@@ -225,13 +237,12 @@ class Runner:
             else:
                 status = "failure"
                 self.failures += 1
-
-            self.file_log("result - {}".format(status))
         else:
-            self.file_log("result - file missing")
+            status = "file missing"
             self.errors += 1
 
-        self.collect_new_annotations(file_plan)
+        new, stale, missing = self.collect_new_annotations(file_plan)
+        self.file_log("result - {}, annotations: {} new, {} stale, {} missing".format(status, new, stale, missing))
 
     def run_file(self):
         full_file_plan = self.plan[self.file_index - 1]
