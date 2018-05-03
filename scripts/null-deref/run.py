@@ -156,7 +156,7 @@ class Runner:
 
             os.replace(new_path, old_path)
 
-        if not os.listdir(new_functions_dir):
+        if os.path.exists(new_functions_dir) and not os.listdir(new_functions_dir):
             os.rmdir(new_functions_dir)
 
     def run_cpachecker(self, file_plan):
