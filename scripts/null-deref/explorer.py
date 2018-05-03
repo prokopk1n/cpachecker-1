@@ -1,40 +1,6 @@
 import argparse
 import json
-import re
 import sys
-
-def load_km(path):
-    print("Loading project information from {}".format(path))
-
-    with open(path) as f:
-        return json.load(f)
-
-def load_preplan(path):
-    print("Loading preplan from {}".format(path))
-
-    with open(path) as f:
-        return json.load(f)
-
-def from_json_function_graph(json_function_graph):
-    print("Converting function graph from JSON-friendly format")
-    function_graph = {}
-
-    for name, files in json_function_graph.items():
-        for file, json_called_functions in files.items():
-            called_functions = set()
-            function_graph[(name, file)] = called_functions
-
-            for called_name, called_files in json_called_functions.items():
-                for called_file in called_files:
-                    called_functions.add((called_name, called_file))
-
-    return function_graph
-
-def load_plan(path):
-    print("Loading plan from {}".format(path))
-
-    with open(path) as f:
-        return json.load(f)
 
 def load_annotations(path):
     print("Loading annotations from {}".format(path))
@@ -42,100 +8,29 @@ def load_annotations(path):
     with open(path) as f:
         return json.load(f)
 
-def load_log(path):
-    print("Loading log from {}".format(path))
-
-    log = {}
-
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-
-            match = re.match(r"^Analysing object file #\d+/\d+: (\S+) [^\-]* \- (.*)$", line)
-
-            if match is None:
-                continue
-
-            object_file, status = match.groups()
-
-            match = re.match(r"^([^,]*), took (\S+) seconds$", status)
-
-            if match is None:
-                seconds = 0.0
-            else:
-                status, seconds = match.groups()
-                seconds = float(seconds)
-
-            log[object_file] = {
-                "status": status,
-                "seconds": seconds
-            }
-
-    return log
-
-def build_model(preplan, plan, annotations, log):
-    print("Indexing functions")
+def build_model(annotations):
+    print("Indexing annotations")
 
     model = {
         "functions": {},
-        "object files": {}
+        "object files": {},
+        "source files": {}
     }
-
-    for object_file_plan in plan:
-        file = object_file_plan["object file"]
-
-        object_file_stats = {
-            "file": file,
-            "functions": {},
-            "status": "not analysed",
-            "seconds": 0.0
-        }
-        model["object files"][file] = object_file_stats
-
-        for function in object_file_plan["functions"]:
-            name = function["name"]
-
-            function_stats = {
-                "name": name,
-                "has annotation": False
-            }
-
-            model["functions"].setdefault(name, {})[file] = function_stats
-            object_file_stats["functions"][name] = function_stats
 
     for name, source_files in annotations.items():
         for source_file, annotation in source_files.items():
-            file = annotation["object file"]
+            object_file = annotation["object file"]
+            annotation["name"] = name
+            annotation["source file"] = source_file
+            model["functions"].setdefault(name, []).append(annotation)
+            model["object files"].setdefault(object_file, []).append(annotation)
+            model["source files"].setdefault(source_file, []).append(annotation)
 
-            function_stats = model["functions"][name][file]
-            function_stats["has annotation"] = True
-            function_stats["source file"] = source_file
-            function_stats["signature"] = annotation["signature"]
-            function_stats["params"] = []
-
-            for param in annotation["params"]:
-                if not param["is pointer"]:
-                    descr = "not pointer"
-                elif param["must deref"]:
-                    descr = "must deref"
-                elif param["may deref"]:
-                    descr = "may deref"
-                else:
-                    descr = "no deref"
-
-                function_stats["params"].append("{}: {}".format(param["name"], descr))
-
-    for file, log_info in log.items():
-        model["object files"][file]["status"] = log_info["status"]
-        model["object files"][file]["seconds"] = log_info["seconds"]
+    for mapping in model.values():
+        for annotation_list in mapping.values():
+            annotation_list.sort(key=lambda annotation: annotation["name"])
 
     return model
-
-def show_file_stats(file_stats, indent):
-    print("{}Object file: '{}'".format(indent, file_stats["file"]))
-    print("{}Number of planned functions: {}".format(indent, len(file_stats["functions"])))
-    print("{}Analysis status: {}".format(indent, file_stats["status"]))
-    print("{}Analysis duration: {} seconds".format(indent, file_stats["seconds"]))
 
 def show_function_stats(function_stats, indent):
     print("{}Function name: '{}'".format(indent, function_stats["name"]))
@@ -150,72 +45,87 @@ def show_function_stats(function_stats, indent):
         for param in function_stats["params"]:
             print("{}    {}".format(indent, param))
 
-def show_function(model, name):
-    if name not in model["functions"]:
-        print("Not recognizing function '{}'".format(name))
-        return
+def show_annotation(annotation):
+    print("Function name: {}".format(annotation["name"]))
+    print("Signature: {}".format(annotation["signature"]))
+    print("Object file: {}".format(annotation["object file"]))
+    print("Source file: {}".format(annotation["source file"]))
 
-    object_file_to_stats = model["functions"][name]
-
-    if len(object_file_to_stats) == 1:
-        file = next(iter(object_file_to_stats))
-        show_file_stats(model["object files"][file], "")
-        print()
-        show_function_stats(object_file_to_stats[file], "")
+    if annotation["returns signed"]:
+        if annotation["may return negative"]:
+            if annotation["may return positive"]:
+                return_description = "any signed"
+            else:
+                return_description = "signed <= 0"
+        else:
+            if annotation["may return positive"]:
+                return_description = "signed >= 0"
+            else:
+                return_description = "signed == 0"
+    elif annotation["returns pointer"]:
+        if annotation["may return null"]:
+            if annotation["may return errptr"]:
+                return_description = "any pointer"
+            else:
+                return_description = "valid pointer or NULL"
+        else:
+            if annotation["may return errptr"]:
+                return_description = "valid pointer or ERR_PTR"
+            else:
+                return_description = "valid pointer"
     else:
-        print("Function '{}' analysed in {} object files".format(name, len(object_file_to_stats)))
+        return_description = "other"
 
-        for file, function_stats in sorted(object_file_to_stats.items()):
-            print()
-            show_file_stats(model["object files"][file], "    ")
-            print()
-            show_function_stats(function_stats, "    ")
+    print("Return annotation: {}".format(return_description))
 
-def show_object_file(model, file):
-    if file not in model["object files"]:
-        print("Not recognizing object file '{}'".format(file))
+    if len(annotation["params"]) == 0:
         return
 
-    show_file_stats(model["object files"][file], "")
+    print("Parameter annotations:")
+
+    for param in annotation["params"]:
+        if param["is pointer"]:
+            if param["must deref"]:
+                parameter_description = "must deref pointer"
+            elif param["may deref"]:
+                parameter_description = "may deref pointer"
+            else:
+                parameter_description = "no deref pointer"
+        else:
+            parameter_description = "other"
+
+        print("  {}: {}".format(param["name"], parameter_description))
+
+def show_annotations(annotation_list):
+    print("Found {} annotation{}".format(len(annotation_list), "" if len(annotation_list) == 1 else "s"))
+
+    for annotation in annotation_list:
+        print()
+        show_annotation(annotation)
 
 def show_help():
     print("  -f <function>    Show function info")
     print("  -o <object file> Show object file info")
+    print("  -s <function>    Show source file info")
     print("  -h               Show this help")
     print("  -q               Quit")
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Annotation stats analyser for null deref annotation algorithm")
-
-    parser.add_argument(
-        "preplan",
-        help="Path to a JSON file containing preplan, as generated by preplan.py.")
-
-    parser.add_argument(
-        "plan",
-        help="Path to a JSON file containing plan.")
+        description="Annotation explorer for null deref annotation algorithm")
 
     parser.add_argument(
         "annotations",
         help="Path to a JSON file with collected annotations.")
 
     parser.add_argument(
-        "log",
-        help="Path to run.py log file.")
-
-    parser.add_argument(
         "--cmds",
         help="Read commands from a file instead of stdin.")
 
     args = parser.parse_args()
-    preplan = load_preplan(args.preplan)
-    preplan["function graph"] = from_json_function_graph(preplan["function graph"])
-    plan = load_plan(args.plan)
     annotations = load_annotations(args.annotations)
-    log = load_log(args.log)
 
-    model = build_model(preplan, plan, annotations, log)
+    model = build_model(annotations)
 
     print("Ready to process commands:")
     show_help()
@@ -249,12 +159,19 @@ def main():
         if line == "-q":
             break
 
+        if line == "-h":
+            show_help()
+            continue
+
         if line.startswith("-f"):
             name = line[2:].strip()
-            show_function(model, name)
+            show_annotations(model["functions"].get(name, []))
         elif line.startswith("-o"):
             name = line[2:].strip()
-            show_object_file(model, name)
+            show_annotations(model["object files"].get(name, []))
+        elif line.startswith("-s"):
+            name = line[2:].strip()
+            show_annotations(model["source files"].get(name, []))
         else:
             print("Invalid command.")
 
