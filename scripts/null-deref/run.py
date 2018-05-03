@@ -124,9 +124,6 @@ class Runner:
         self.changeset["functions"][function[0]] = status
         self.functions[function] = status
 
-    def get_annotation_path(self, object_file, function_name, is_new):
-        return os.path.join(self.new_annotations if is_new else self.annotations, object_file, "functions", "{}.txt".format(function_name))
-
     def collect_new_annotations(self, file_plan):
         object_file = file_plan["object file"]
 
