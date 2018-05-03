@@ -130,12 +130,17 @@ class Runner:
     def collect_new_annotations(self, file_plan):
         object_file = file_plan["object file"]
 
+        new_functions_dir = os.path.join(self.new_annotations, object_file, "functions")
+        old_functions_dir = os.path.join(self.annotations, object_file, "functions")
+
+        os.makedirs(old_functions_dir, exist_ok=True)
+
         for function_plan in file_plan["functions"]:
             name = function_plan["name"]
             function = (name, object_file)
 
-            new_path = self.get_annotation_path(object_file, name, True)
-            old_path = self.get_annotation_path(object_file, name, False)
+            new_path = os.path.join(new_functions_dir, "{}.txt".format(name))
+            old_path = os.path.join(old_functions_dir, "{}.txt".format(name))
 
             if not os.path.exists(new_path):
                 self.set_status(function, "error")
@@ -150,15 +155,17 @@ class Runner:
 
                 self.set_status(function, "stale" if new_annotation == old_annotation else "new")
             else:
-                os.makedirs(os.path.dirname(old_path), exist_ok=True)
                 self.set_status(function, "new")
 
             os.replace(new_path, old_path)
 
+        if not os.listdir(new_functions_dir):
+            os.rmdir(new_functions_dir)
+
     def run_cpachecker(self, file_plan):
         name = file_plan["object file"]
         path = os.path.join(self.sources, name, os.path.basename(name))
-        file_dir = os.path.join(os.path.abspath(self.annotations), name)
+        file_dir = os.path.join(os.path.abspath(self.new_annotations), name)
 
         if os.path.exists(path):
             if not os.path.exists(file_dir):
