@@ -33,6 +33,10 @@ class Runner:
         self.errors = 0
         self.timeouts = 0
 
+        self.new = 0
+        self.stale = 0
+        self.missing = 0
+
         if not os.path.exists(self.workdir):
             os.makedirs(self.workdir)
 
@@ -169,6 +173,9 @@ class Runner:
         if os.path.exists(new_functions_dir) and not os.listdir(new_functions_dir):
             os.rmdir(new_functions_dir)
 
+        self.new += new
+        self.stale += stale
+        self.missing += missing
         return new, stale, missing
 
     def run_cpachecker(self, file_plan):
@@ -289,6 +296,7 @@ class Runner:
                 filtered_function_plans.append(function_plan)
             else:
                 self.set_status(function, "stale")
+                self.stale += 1
 
         if len(filtered_function_plans) > 0:
             self.file_log("running CPAChecker ({}/{} functions)".format(len(filtered_function_plans), len(full_file_plan["functions"])))
@@ -305,7 +313,8 @@ class Runner:
             self.next_file()
 
         self.log("Done")
-        self.log("{} successes, {} skipped, {} failures, {} errors, {} timeouts".format(self.successes, self.skipped, self.failures, self.errors, self.timeouts))
+        self.log("Files: {} successes, {} skipped, {} failures, {} errors, {} timeouts".format(self.successes, self.skipped, self.failures, self.errors, self.timeouts))
+        self.log("Annotations: {} new, {} stale, {} missing".format(self.new, self.stale, self.missing))
 
 def main():
     parser = argparse.ArgumentParser(
