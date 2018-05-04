@@ -519,33 +519,75 @@ public class NullDerefArgAnnotationAlgorithm implements Algorithm, StatisticsPro
 
     cfa = cfa.getCopyWithMainFunction(entryNode);
 
+    FunctionDerefAnnotation existingAnnotation = getFunctionAnnotation(pPlan.name, objectFile);
+
     try {
       if (entryNode.getReturnVariable().isPresent()) {
         String returnVariableName = entryNode.getReturnVariable().get().getName();
 
         if (functionAnnotation.returnAnnotation.isPointer) {
-          functionAnnotation.returnAnnotation.mayBeNull = mayReturnNull(pPlan, returnVariableName);
-          functionAnnotation.returnAnnotation.mayBeError = mayReturnErr(pPlan, returnVariableName);
+          if (existingAnnotation == null || !existingAnnotation.returnAnnotation.isPointer || existingAnnotation.returnAnnotation.mayBeNull) {
+            functionAnnotation.returnAnnotation.mayBeNull = mayReturnNull(pPlan, returnVariableName);
+          } else {
+            functionAnnotation.returnAnnotation.mayBeNull = false;
+          }
+
+          if (existingAnnotation == null || !existingAnnotation.returnAnnotation.isPointer || existingAnnotation.returnAnnotation.mayBeError) {
+            functionAnnotation.returnAnnotation.mayBeError = mayReturnErr(pPlan, returnVariableName);
+          } else {
+            functionAnnotation.returnAnnotation.mayBeError = false;
+          }
         } else if (functionAnnotation.returnAnnotation.isSigned) {
-          functionAnnotation.returnAnnotation.mayBeNegative = mayReturnNegative(pPlan, returnVariableName);
-          functionAnnotation.returnAnnotation.mayBePositive = mayReturnPositive(pPlan, returnVariableName);
+          if (existingAnnotation == null || !existingAnnotation.returnAnnotation.isSigned || existingAnnotation.returnAnnotation.mayBeNegative) {
+            functionAnnotation.returnAnnotation.mayBeNegative = mayReturnNegative(pPlan, returnVariableName);
+          } else {
+            functionAnnotation.returnAnnotation.mayBeNegative = false;
+          }
+
+          if (existingAnnotation == null || !existingAnnotation.returnAnnotation.isSigned || existingAnnotation.returnAnnotation.mayBePositive) {
+            functionAnnotation.returnAnnotation.mayBePositive = mayReturnPositive(pPlan, returnVariableName);
+          } else {
+            functionAnnotation.returnAnnotation.mayBePositive = false;
+          }
         }
       }
 
       logger.log(Level.INFO, "New return annotation in function " + pPlan.name + ": " + functionAnnotation.returnAnnotation);
 
+      int index = 0;
+
       for (ParameterDerefAnnotation parameterAnnotation : parameterAnnotations) {
+        ParameterDerefAnnotation existingParameterAnnotation = null;
+
+        if (existingAnnotation != null && existingAnnotation.parameterAnnotations.size() > index) {
+          existingParameterAnnotation = existingAnnotation.parameterAnnotations.get(index);
+
+          if (!existingParameterAnnotation.name.equals(parameterAnnotation.name) || !existingParameterAnnotation.isPointer) {
+            existingParameterAnnotation = null;
+          }
+        }
+
         if (parameterAnnotation.isPointer) {
-          parameterAnnotation.mustBeDereferenced = mustDereferenceNull(pPlan, parameterAnnotation.name);
+          if (existingParameterAnnotation == null || !existingParameterAnnotation.mustBeDereferenced) {
+            parameterAnnotation.mustBeDereferenced = mustDereferenceNull(pPlan, parameterAnnotation.name);
+          } else {
+            parameterAnnotation.mustBeDereferenced = true;
+          }
 
           if (parameterAnnotation.mustBeDereferenced) {
             parameterAnnotation.mayBeDereferenced = true;
           } else {
-            parameterAnnotation.mayBeDereferenced = mayDereferenceNull(pPlan, parameterAnnotations, parameterAnnotation.name);
+            if (existingParameterAnnotation == null || existingParameterAnnotation.mayBeDereferenced) {
+              parameterAnnotation.mayBeDereferenced = mayDereferenceNull(pPlan, parameterAnnotations, parameterAnnotation.name);
+            } else {
+              parameterAnnotation.mayBeDereferenced = false;
+            }
           }
 
           logger.log(Level.INFO, "New parameter annotation in function " + pPlan.name + ": " + parameterAnnotation);
         }
+
+        index++;
       }
 
       saveAnnotation(functionAnnotation);
