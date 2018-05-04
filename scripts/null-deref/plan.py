@@ -2,7 +2,6 @@ import argparse
 import json
 import random
 import os
-import sys
 
 def load_preplan(path):
     print("Loading preplan from {}".format(path))
@@ -203,23 +202,17 @@ def main():
     random.seed()
 
     min_dropped_deps = None
-    best_plan = None
 
     for attempt in range(args.attempts):
-        sys.stdout.flush()
         plan, stats = make_plan(preplan)
         dropped_deps = stats["dropped"]
 
         if min_dropped_deps is None or dropped_deps < min_dropped_deps:
             min_dropped_deps = dropped_deps
-            best_plan = plan
-            best_stats = stats
 
-        sys.stdout.write("\rBest plan after {} attempts: {} functions in {} object files, {} dropped interprocedural dependencies out of {} ({:.4f}%)".format(
-                attempt + 1, best_stats["functions"], best_stats["object files"], best_stats["dropped"], best_stats["calls"], best_stats["dropped"] / best_stats["calls"] * 100))
-
-    print()
-    save_plan(best_plan, args.plan)
+            print("Best plan after {} attempts: {} functions in {} object files, {} dropped interprocedural dependencies out of {} ({:.4f}%)".format(attempt + 1,
+                stats["functions"], stats["object files"], stats["dropped"], stats["calls"], stats["dropped"] / stats["calls"] * 100))
+            save_plan(plan, args.plan)
 
 if __name__ == "__main__":
     main()
