@@ -28,18 +28,13 @@ def join_annotations(annotations1, annotations2):
 
     for name, source_files in annotations1.items():
         for source_file, annotation1 in source_files.items():
-            if name not in annotations2 or source_file not in annotations2[name]:
-                joined_annotations.setdefault(name, {})[source_file] = annotation1
+            joined_annotations.setdefault(name, {})[source_file] = annotation1
+
+            if name not in annotations2 or source_file not in annotations2[name]:                
                 annotations1_only += 1
                 continue
 
             annotation2 = annotations2[name][source_file]
-
-            joined_annotation = {
-                "object file": annotation1["object file"],
-                "signature": annotation1["signature"],
-                "params": []
-            }
 
             annotation1_has_better_param = False
             annotation2_has_better_param = False
@@ -50,21 +45,14 @@ def join_annotations(annotations1, annotations2):
                     has_mismatch = True
                     break
 
-                joined_param = {
-                    "name": param1["name"],
-                    "is pointer": param1["is pointer"]
-                }
-
-                if joined_param["is pointer"]:
-                    joined_param["must deref"] = param1["must deref"] or param2["must deref"]
-
+                if param1["is pointer"]:
                     if param1["must deref"] != param2["must deref"]:
                         if param1["must deref"]:
                             annotation1_has_better_param = True
                         else:
                             annotation2_has_better_param = True
 
-                    joined_param["may deref"] = param1["may deref"] and param2["may deref"]
+                    param1["must deref"] = param1["must deref"] or param2["must deref"]
 
                     if param1["may deref"] != param2["may deref"]:
                         if not param1["may deref"]:
@@ -72,13 +60,10 @@ def join_annotations(annotations1, annotations2):
                         else:
                             annotation2_has_better_param = True
 
-                joined_annotation["params"].append(joined_param)
+                    param1["may deref"] = param1["may deref"] and param2["may deref"]
 
             if has_mismatch:
                 annotations_mismatch += 1
-                joined_annotation = annotation1
-
-            joined_annotations.setdefault(name, {})[source_file] = joined_annotation
 
             if has_mismatch:
                 continue
@@ -97,6 +82,10 @@ def join_annotations(annotations1, annotations2):
     for name, source_files in annotations2.items():
         for source_file, annotation2 in source_files.items():
             if name not in annotations1 or source_file not in annotations1[name]:
+                if "returns pointer" not in annotation2 and "returns signed" not in annotation2:
+                    annotation2["returns pointer"] = False
+                    annotation2["returns signed"] = False
+
                 joined_annotations.setdefault(name, {})[source_file] = annotation2
                 annotations2_only += 1
 
