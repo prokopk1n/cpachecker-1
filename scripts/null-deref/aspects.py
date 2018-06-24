@@ -126,43 +126,6 @@ def get_functions(km, annotations):
 
     return functions
 
-def get_calling_drivers(functions):
-    drivers = {}
-
-    for name, function in functions.items():
-        for called_file in function["called_files"]:
-            if called_file.startswith("drivers/") and not called_file.startswith("drivers/base/"):
-                drivers.setdefault(called_file, []).append(name)
-
-    return drivers
-
-def filter_aspected(drivers, functions):
-    filtered_drivers = {}
-
-    for driver, called_names in drivers.items():
-        for name in called_names:
-            if "aspect" in functions[name]:
-                filtered_drivers.setdefault(driver, []).append(name)
-
-    return filtered_drivers
-
-def report_drivers(drivers, functions, only_aspected):
-    functions_descr = "functions with aspects" if only_aspected else "all functions with pointer arguments"
-
-    print("Looking at drivers that call {}.".format(functions_descr))
-
-    if only_aspected:
-        drivers = filter_aspected(drivers, functions)
-
-    print("Total number of drivers: {}".format(len(drivers)))
-    print("Total number of calls: {}".format(sum(len(names) for names in drivers.values())))
-
-    print("Most calling drivers:")
-    print()
-
-    for driver, names in sorted(drivers.items(), key=lambda pair: -len(pair[1])):
-        print("  {}: {} calls".format(driver, len(names)))
-
 def main():
     parser = argparse.ArgumentParser(description="Aspect file generator")
 
@@ -176,21 +139,13 @@ def main():
 
     parser.add_argument(
         "assert_aspect",
-        help="Path used to write generated aspects using ldv_assert.")
-
-    parser.add_argument(
-        "assume_aspect",
-        help="Path used to write generated aspects using ldv_assume.")
+        help="Path used to write generated aspects with assertions.")
 
     args = parser.parse_args()
     km = load_km(args.km)
     annotations = load_annotations(args.annotations)
     functions = get_functions(km, annotations)
-    drivers = get_calling_drivers(functions)
-    report_drivers(drivers, functions, True)
-    report_drivers(drivers, functions, False)
     write_aspects(functions, args.assert_aspect, "assert")
-    write_aspects(functions, args.assume_aspect, "assume")
 
 if __name__ == "__main__":
     main()
