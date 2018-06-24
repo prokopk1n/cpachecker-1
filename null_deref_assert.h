@@ -19,6 +19,8 @@ extern unsigned long long __VERIFIER_nondet_ulonglong(void);
 
 extern void *external_allocated_data(void);
 
+extern void __VERIFIER_assume(int expr);
+
 extern void null_deref_assert_check(void *p);
 
 #endif

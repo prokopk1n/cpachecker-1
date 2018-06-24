@@ -83,8 +83,8 @@ def get_functions(km, annotations):
             if parameter["is pointer"] and parameter["must deref"]:
                 aspect_lines.append("  null_deref_NULLDEREFCHECKTYPE_check($arg{});".format(index + 1))
 
-        if len(aspect_lines) == 0:
-            continue
+        has_param_aspect = len(aspect_lines) > 0
+        has_return_aspect = False
 
         signature = annotation["signature"]
         # Replace argument list with `..`.
@@ -93,14 +93,36 @@ def get_functions(km, annotations):
         signature = "{} {}(..)".format(ret_type, name)
 
         if "*" in ret_type:
-            aspect_lines.append("  return external_allocated_data();")
+            if annotation["returns pointer"] and annotation["may return null"]:
+                has_return_aspect = True
+                aspect_lines.append("  if (__VERIFIER_nondet_int())")
+                aspect_lines.append("    return (void *) 0;")
+                aspect_lines.append("  else")
+                aspect_lines.append("    return external_allocated_data();")
+            else:
+                aspect_lines.append("  return external_allocated_data();")
         elif ret_type in nondet_functions:
-            aspect_lines.append("  return {}();".format(nondet_functions[ret_type]))
+            if annotation["returns signed"] and not annotation["may return negative"] and not annotation["may return positive"]:
+                has_return_aspect = True
+                aspect_lines.append("  return 0;")
+            elif annotation["returns signed"] and not annotation["may return negative"]:
+                has_return_aspect = True
+                aspect_lines.append("  {} ret = {}();".format(ret_type, nondet_functions[ret_type]))
+                aspect_lines.append("  __VERIFIER_assume(ret >= 0);")
+                aspect_lines.append("  return ret;")
+            elif annotation["returns signed"] and not annotation["may return positive"]:
+                has_return_aspect = True
+                aspect_lines.append("  {} ret = {}();".format(ret_type, nondet_functions[ret_type]))
+                aspect_lines.append("  __VERIFIER_assume(ret <= 0);")
+                aspect_lines.append("  return ret;")
+            else:
+                aspect_lines.append("  return {}();".format(nondet_functions[ret_type]))
         elif ret_type != "void":
             aspect_lines.append("  {} *retp = external_allocated_data();".format(ret_type))
             aspect_lines.append("  return *retp;")
 
-        function["aspect"] = "around: call({})\n{{\n{}\n}}\n\n".format(signature, "\n".join(aspect_lines))
+        if has_param_aspect or has_return_aspect:
+            function["aspect"] = "around: call({})\n{{\n{}\n}}\n\n".format(signature, "\n".join(aspect_lines))
 
     return functions
 
@@ -140,11 +162,6 @@ def report_drivers(drivers, functions, only_aspected):
 
     for driver, names in sorted(drivers.items(), key=lambda pair: -len(pair[1])):
         print("  {}: {} calls".format(driver, len(names)))
-
-        for name in sorted(names):
-            print("    {}".format(name))
-
-        print()
 
 def main():
     parser = argparse.ArgumentParser(description="Aspect file generator")
