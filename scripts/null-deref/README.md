@@ -2,64 +2,77 @@
 
 ## Зависимости
 
-* Код ядра.
+* Код ядра (4.2.6).
 * CPAchecker: `https://github.com/mutilin/cpachecker`, ветка `muauto-match-deref`. Комадна сборки: `ant`.
-* Kartographer: нужно пропатчить `kartographer/kartographer.py`, чтобы присваивание `cif_args` выглядело так:
+* Kartographer: `https://forge.ispras.ru/projects/kartographer`.
+* CIF.
 
-    ```python
-    cif_args = [cif,
-                "--debug", "ALL",
-                "--in", cif_in,
-                "--aspect", aspect,
-                "--back-end", "src",
-                "--out", cif_out,
-                "--keep"]
-    ```
+## Патчи
 
-## Процедура запуска
+### Kartographer
 
-1. В Makefile ядра необходимо закомментировать следующие строчки:
+В Kartographer нужно пропатчить `kartographer.py`, чтобы присваивание `cif_args` выглядело так:
 
-    ```make
-    ifeq ($(shell $(CONFIG_SHELL) $(srctree)/scripts/gcc-goto.sh $(CC)), y)
-        KBUILD_CFLAGS += -DCC_HAVE_ASM_GOTO
-        KBUILD_AFLAGS += -DCC_HAVE_ASM_GOTO
-    endif
-    ```
+```python
+cif_args = [cif,
+            "--debug", "ALL",
+            "--in", cif_in,
+            "--aspect", aspect,
+            "--back-end", "src",
+            "--out", cif_out,
+            "--keep"]
+```
 
-    CPAchecker не понимает `asm goto`, а CIF не избавляется от него.
+### Makefile ядра
 
-2. Запустить Kartographer на ядре, см. его `readme.txt`. В результате в его `workdir` должны получиться файл `km.json` и папка `cif`.
-3. Запустить `plan.py`: `python3 scripts/null-deref/plan.py PATH_TO_KM.JSON plan.json`
+В Makefile ядра необходимо закомментировать следующие строчки:
 
-    Аргументы: путь к `km.json`, путь к генерируему плану.
+```make
+ifeq ($(shell $(CONFIG_SHELL) $(srctree)/scripts/gcc-goto.sh $(CC)), y)
+    KBUILD_CFLAGS += -DCC_HAVE_ASM_GOTO
+    KBUILD_AFLAGS += -DCC_HAVE_ASM_GOTO
+endif
+```
 
-4. Запустить `run.py`: `python3 scripts/null-deref/run.py . PATH_TO_CIF plan.json annotations`
+CPAchecker не понимает `asm goto`, а CIF не избавляется от него.
 
-    Аргументы: путь к папке CPAchecker, путь к плану, путь к папке `cif`, путь к папке, в которую будут складываться аннотации.
+## Шаги сбора аннотаций
 
-    Также есть несколько опций, см. `--help`.
+### Запуск Kartographer
 
-    По мере работы аннотации и логи складываются в `annotations`. Каждому анализируемому файлу соответствует папка,
-    в ней `deref_annotation.txt` содержит аннотации в странном формате, а `log.txt` содержит лог запуска CPAchecker.
+1. `make clean` и `make allmodconfig` в папке с исходниками ядра.
+2. `python3 bce.py --sources <path to Linux sources`.
+3. `python3 kartographer.py --bc cmds.json --cif <path to CIF binary>`.
 
-5. Запустить `collect.py`: `python3 scripts/null-deref.py/collect.py PATH_TO_KM.JSON annotations annotations.json`
+Также см. инструкции в README-kartographer.txt.
 
-    Аргументы: путь к `km.json`, папка с аннотациями, путь к генерируемому файлу с собранными аннотациями.
+В результате должны получиться файл `workdir/km.json` и папка `workdir/cif`, они используются в последующих шагах.
 
-6. (опционально) Запустить `stats.py`: `python3 scripts/null-deref.py/stats.py PATH_TO_PLAN.JSON PATH_TO_ANNOTATIONS.JSON`
+### Подготовка к запуску CPAchecker
 
-    Аргументы: путь к плану, путь к файлу с собранными аннотациями.
+1. `python3 scripts/null-deref/preplan.py <path to km.json> preplan.json`
+2. `python3 scripts/null-deref/plan.py preplan.json plan.json`. Можно передать `--attempts=N`, чтобы `N` раз распределить функции по файлам и выбрать наилучший вариант.
 
-    Эта команда печатает общую статистику об аннотациях.
+### Запуск CPAchecker
 
-## Формат файла аннотаций
+Команда запуска: `python3 scripts/null-deref/run.py <path to cpachecker> <path to workdir/cif> annotations workdir`.
 
-Полученный на 5-ом шаге `annotations.json` - JSON словарь, по цепочке ключей `[function_name][source_file_name]` получается словарь аннотаций одной функции, в нём ключи:
+В `annotations` по мере работы складываются аннотации во внутреннем формате (по файлу на функцию).
 
-* "object file": в рамках какого объектного файла функция была проанализирована.
-* "params": массив аннотаций отдельных параметров. Для каждого параметра - словарь с ключами:
+В `workdir` пишутся временные файлы. В `workdir/log.txt` лог запусков, можно следить  при помощи `tail -f`. При перезапуске с существующей папкой `workdir` прогресс восстанавливается и запуски продолжаются с последнего файла. Можно начать с более раннего файла при помощи `--from-file=INDEX`.
 
-    * "name": имя параметра.
-    * "is pointer": true если параметр - указатель, иначе false.
-    * "may deref", "must deref": флаги соответствующих аннотаций. Отсутствуют, если параметр не указатель.
+`--generations=N` проходит по файлам `N` раз, переанализируя только функции с изменившимися аннотациями вызываемых функций.
+
+`--heap` и `--time` задают лимиты, передаваемые в CPAchecker, например, `--heap 20000M --time 1800s`.
+
+`--timeout` задаёт внешний timeout при запуске CPAchecker в секундах, например, `--timeout 2000`.
+
+### Сбор аннотаций и генерация аспектов
+
+1. `python3 scripts/null-deref/collect.py plan.py annotations annotations.json` собирает все аннотации в один JSON файл.
+2. `python3 scripts/null-deref/aspects.py <path to km.json> annotations.json null_deref_assert.aspect`.
+
+### Использование в Klever
+
+1. Файлы `null_deref_assert.c`, `null_deref_assert.h` (из этого репозитория), и полученный `null_deref_assert.aspect` необходимо добавить в job Klever'а.
+2. В `rule specs.json` в настройках RSG для используемого rule надо в `modeles` добавить `"null_deref_assert.c": {}`.
