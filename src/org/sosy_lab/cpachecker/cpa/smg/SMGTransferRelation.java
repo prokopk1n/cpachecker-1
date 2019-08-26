@@ -48,6 +48,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CArrayDesignator;
 import org.sosy_lab.cpachecker.cfa.ast.c.CAssignment;
 import org.sosy_lab.cpachecker.cfa.ast.c.CBinaryExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CBinaryExpression.BinaryOperator;
+import org.sosy_lab.cpachecker.cfa.ast.c.CCharLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CDesignatedInitializer;
 import org.sosy_lab.cpachecker.cfa.ast.c.CDesignator;
@@ -66,6 +67,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CPointerExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CRightHandSide;
 import org.sosy_lab.cpachecker.cfa.ast.c.CSimpleDeclaration;
 import org.sosy_lab.cpachecker.cfa.ast.c.CStatement;
+import org.sosy_lab.cpachecker.cfa.ast.c.CStringLiteralExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CVariableDeclaration;
 import org.sosy_lab.cpachecker.cfa.model.BlankEdge;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
@@ -916,9 +918,28 @@ public class SMGTransferRelation
       throws CPATransferException {
 
     if (pInitializer instanceof CInitializerExpression) {
-       return assignFieldToState(pNewState, pEdge, pNewObject,
-          pOffset, pLValueType,
-          ((CInitializerExpression) pInitializer).getExpression());
+      CInitializerExpression pNewInitializer = (CInitializerExpression) pInitializer;
+      CExpression expression = pNewInitializer.getExpression();
+      CType realCType = pLValueType.getCanonicalType();
+
+      if (expression instanceof CStringLiteralExpression && realCType instanceof CArrayType) {
+        CArrayType arrayType = (CArrayType) realCType;
+        return handleInitializerString(
+            pNewState,
+            pVarDecl,
+            pEdge,
+            pNewObject,
+            pOffset,
+            arrayType,
+            pNewInitializer);
+      } else {
+        return assignFieldToState(
+            pNewState,
+            pEdge,
+            pNewObject,
+            pOffset, pLValueType,
+            ((CInitializerExpression) pInitializer).getExpression());
+      }
 
     } else if (pInitializer instanceof CInitializerList) {
       CInitializerList pNewInitializer = ((CInitializerList) pInitializer);
@@ -1185,6 +1206,77 @@ public class SMGTransferRelation
       for (SMGState newState : newStates) {
         result.addAll(handleInitializer(newState, pVarDecl, pEdge,
             pNewObject, offset, pLValueType.getType(), initializer));
+      }
+
+      newStates = result;
+      listCounter++;
+    }
+
+    return ImmutableList.copyOf(newStates);
+  }
+
+  private List<SMGState> handleInitializerString(
+      SMGState pNewState,
+      CVariableDeclaration pVarDecl,
+      CFAEdge pEdge,
+      SMGObject pNewObject,
+      long pOffset,
+      CArrayType pLValueType,
+      CInitializerExpression pNewInitializer)
+      throws CPATransferException {
+
+    CExpression expression = pNewInitializer.getExpression();
+
+    int listCounter = 0;
+
+    CType elementType = pLValueType.getType();
+
+    int sizeOfElementType = expressionEvaluator.getBitSizeof(pEdge, elementType, pNewState);
+
+    List<SMGState> newStates = new ArrayList<>(4);
+    newStates.add(pNewState);
+
+    if (!(expression instanceof CStringLiteralExpression)) {
+      throw new UnrecognizedCodeException(
+          "Incorrect use of the function handleInitializerString",
+          pEdge);
+    }
+
+    CStringLiteralExpression realExpression = (CStringLiteralExpression) expression;
+    String exprString = realExpression.getValue();
+
+    char litera;
+    for (int i = 1; i < exprString.length(); i++) {
+
+      if (i == exprString.length() - 1) {
+        litera = 0;
+      } else {
+        litera = exprString.charAt(i);
+      }
+
+      CExpression newExpression =
+          new CCharLiteralExpression(
+              pNewInitializer.getFileLocation(),
+              pLValueType.getType(),
+              litera);
+
+      CInitializerExpression initializer =
+          new CInitializerExpression(pNewInitializer.getFileLocation(), newExpression);
+
+      long offset = pOffset + listCounter * sizeOfElementType;
+
+      List<SMGState> result = new ArrayList<>();
+
+      for (SMGState newState : newStates) {
+        result.addAll(
+            handleInitializer(
+                newState,
+                pVarDecl,
+                pEdge,
+                pNewObject,
+                offset,
+                pLValueType.getType(),
+                initializer));
       }
 
       newStates = result;
