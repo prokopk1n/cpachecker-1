@@ -122,6 +122,8 @@ public class SMGHasValueEdgeSet implements SMGHasValueEdges {
         if (floorEntry != null) {
           SMGEdgeHasValue removingEdge = floorEntry.getValue();
           if (removingEdge.getOffset() + removingEdge.getSizeInBits() <= pEdge.getOffset()) {
+            System.out.println("Removing edge: " + pEdge.toString());
+            System.out.println("Removing floorEdge: " + removingEdge.toString());
             assert false;
             return this;
           } else {
