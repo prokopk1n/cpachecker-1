@@ -175,6 +175,16 @@ final class SMGJoinSubSMGs {
       for (SMGEdgeHasValue hvIn1 : hvEdgesIn1) {
         filterOnSMG2.filterAtOffset(hvIn1.getOffset());
         Iterator<SMGEdgeHasValue> iterator = hvEdgesIn2.filter(filterOnSMG2).iterator();
+        if (!iterator.hasNext()) {
+          System.out.println("Problem offset : " + hvIn1.getOffset());
+          for (SMGEdgeHasValue hvIn11 : hvEdgesIn1) {
+            System.out.println("first : " + hvIn11);
+          }
+          System.out.println("\n");
+          for (SMGEdgeHasValue hvIn21 : hvEdgesIn2) {
+            System.out.println("second : " + hvIn21);
+          }
+        }
         SMGEdgeHasValue hvIn2 = iterator.next();
         assert (!iterator.hasNext());
 
