@@ -24,6 +24,7 @@
 package org.sosy_lab.cpachecker.cpa.string;
 
 import java.io.Serializable;
+import java.util.Set;
 import java.util.SortedSet;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.cpa.smg.util.PersistentSet;
@@ -54,17 +55,17 @@ public class CIStringState implements AbstractState, Serializable {
 
   public final static CIStringState BOTTOM = new CIStringState();
 
-  public void SetCertainly(SortedSet<Character> set) {
+  public void SetCertainly(Set<Character> set) {
     certainly.removeAllAndCopy();
     certainly.addAllAndCopy(set);
   }
 
-  public void SetMaybe(SortedSet<Character> set) {
+  public void SetMaybe(Set<Character> set) {
     maybe.removeAllAndCopy();
     maybe.addAllAndCopy(set);
   }
 
-  public void AddToSertainly(SortedSet<Character> set) {
+  public void AddToSertainly(Set<Character> set) {
     certainly.addAllAndCopy(set);
   }
 

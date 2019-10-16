@@ -34,15 +34,15 @@ public class CIStringDomain implements AbstractDomain {
   public AbstractState join(AbstractState pState1, AbstractState pState2)
       throws CPAException, InterruptedException {
 
-    CIString str1 = (CIString) pState1;
-    CIString str2 = (CIString) pState2;
-    CIString str = new CIString();
+    CIStringState str1 = (CIStringState) pState1;
+    CIStringState str2 = (CIStringState) pState2;
+    CIStringState str = new CIStringState();
 
     if (str1 == null || str2 == null) {
       return null;
     }
-    str.SetCertainly(SetUtil.intersect(str1.GetCertainly(), str2.GetCertainly()));
-    str.SetMaybe(SetUtil.union(str1.GetMaybe(), str2.GetMaybe()));
+    str.SetCertainly(SetUtil.generalizedIntersect(str1.GetCertainly().asSet(), str2.GetCertainly().asSet()));
+    str.SetMaybe(SetUtil.generalizedUnion(str1.GetMaybe().asSet(), str2.GetMaybe().asSet()));
 
     return str;
   }
@@ -50,15 +50,15 @@ public class CIStringDomain implements AbstractDomain {
   @Override
   public boolean isLessOrEqual(AbstractState pState1, AbstractState pState2)
       throws CPAException, InterruptedException {
-    CIString str1 = (CIString) pState1;
-    CIString str2 = (CIString) pState2;
+    CIStringState str1 = (CIStringState) pState1;
+    CIStringState str2 = (CIStringState) pState2;
 
     if (str1 != null && str2 != null) {
-      if (str1.equals(CIString.BOTTOM)) {
+      if (str1.equals(CIStringState.BOTTOM)) {
         return true;
       }
-      return str1.GetCertainly().containsAll(str2.GetCertainly())
-          && str2.GetMaybe().containsAll(str1.GetMaybe());
+      return str1.GetCertainly().containsAll(str2.GetCertainly().asSet())
+          && str2.GetMaybe().containsAll(str1.GetMaybe().asSet());
     }
     return false;
   }

@@ -23,10 +23,8 @@
  */
 package org.sosy_lab.cpachecker.util.predicates.bdd;
 
-import static com.google.common.truth.Truth.assertWithMessage;
+import static org.junit.Assert.assertEquals;
 
-import com.google.common.collect.ImmutableList;
-import java.util.List;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -49,8 +47,8 @@ public class BDDExistsTest {
   public String bddPackage;
 
   @Parameters(name = "{0}")
-  public static List<String> getAllPackages() {
-    return ImmutableList.of("SYLVAN", "JAVA");
+  public static Object[] getAllPackages() {
+    return new String[] {"SYLVAN", "JAVA"};
   }
 
   @Test
@@ -68,8 +66,6 @@ public class BDDExistsTest {
     complete = nrm.makeAnd(complete, r0);
 
     Region reduced = nrm.makeExists(complete, r1, r2);
-    assertWithMessage(new StringBuilder().append(nrm.dumpRegion(reduced)).toString())
-        .that(reduced)
-        .isEqualTo(r0);
+    assertEquals(new StringBuilder().append(nrm.dumpRegion(reduced)).toString(), reduced, r0);
   }
 }

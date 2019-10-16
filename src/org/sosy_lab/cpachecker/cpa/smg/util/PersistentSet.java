@@ -74,6 +74,13 @@ public class PersistentSet<K> implements Iterable<K> {
     return delegate.containsKey(key);
   }
 
+  public boolean containsAll(Set<K> keys) {
+    boolean result = true;
+    Iterator<K> iter = keys.iterator();
+    result = result && this.contains(iter.next());
+    return result;
+  }
+
   public int size() {
     return delegate.size();
   }

@@ -45,7 +45,7 @@ public class StringCPA extends AbstractCPA {
   @Override
   public AbstractState getInitialState(CFANode pNode, StateSpacePartition pPartition)
       throws InterruptedException {
-    return CIString.BOTTOM;
+    return CIStringState.BOTTOM;
   }
 
   public static CPAFactory factory() {

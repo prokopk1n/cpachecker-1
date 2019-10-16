@@ -502,11 +502,12 @@ public class CtoFormulaConverter {
     SSAMapBuilder ssa = pContextSSA.builder();
     Formula formula = makeVariable(pVarName, pType, ssa);
 
-    checkArgument(
-        ssa.build().equals(pContextSSA),
-        "we cannot apply the SSAMap changes to the point where the"
-            + " information would be needed possible problems: uninitialized variables could be"
-            + " in more formulas which get conjuncted and then we get unsatisfiable formulas as a result");
+    if (!ssa.build().equals(pContextSSA)) {
+      throw new IllegalArgumentException(
+          "we cannot apply the SSAMap changes to the point where the"
+              + " information would be needed possible problems: uninitialized variables could be"
+              + " in more formulas which get conjuncted and then we get unsatisfiable formulas as a result");
+    }
 
     return formula;
   }

@@ -24,8 +24,10 @@
 package org.sosy_lab.cpachecker.cpa.ifcsecurity.util;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -40,14 +42,75 @@ public final class SetUtil<E extends Comparable<? super E>> {
     // Private constructor for utility class
   }
 
-    /**
-     * Computes a new set, that is the union of <i>set1</i> and <i>set2</i>.
-     * @param pSet1 a Set.
-     * @param pSet2 the other Set
-     * @return Setunion.
-     */
-    public static <E> SortedSet<E> union(SortedSet<E> pSet1,SortedSet<E> pSet2){
-      SortedSet<E> result=new TreeSet<>();
+  public static <E> SortedSet<E> union(SortedSet<E> pSet1, SortedSet<E> pSet2) {
+    SortedSet<E> result = new TreeSet<>();
+    E elem;
+
+    for (E aPSet1 : pSet1) {
+      elem = aPSet1;
+      result.add(elem);
+    }
+    for (E aPSet2 : pSet2) {
+      elem = aPSet2;
+      result.add(elem);
+    }
+    return result;
+  }
+
+  /**
+   * Computes a new set, that is the intersection of <i>set1</i> and <i>set2</i>.
+   *
+   * @param pSet1 a Set.
+   * @param pSet2 the other Set
+   * @return Setintersection.
+   */
+  public static <E extends Comparable<? super E>> SortedSet<E>
+      intersect(SortedSet<E> pSet1, SortedSet<E> pSet2) {
+    SortedSet<E> result = new TreeSet<>();
+    Iterator<E> it1 = pSet1.iterator();
+    Iterator<E> it2 = pSet2.iterator();
+
+    if (!it1.hasNext()) {
+      return result;
+    }
+    if (!it2.hasNext()) {
+      return result;
+    }
+
+    E elem1 = pSet1.first();
+    E elem2 = pSet2.first();
+
+    while (true) {
+      if (elem1.compareTo(elem2) == 0) {
+        result.add(elem1);
+        if (!it1.hasNext()) {
+          break;
+        }
+        if (!it2.hasNext()) {
+          break;
+        }
+        elem1 = it1.next();
+        elem2 = it2.next();
+      }
+      if (elem1.compareTo(elem2) < 0) {
+        if (!it1.hasNext()) {
+          break;
+        }
+        elem1 = it1.next();
+      }
+      if (elem1.compareTo(elem2) > 0) {
+        if (!it2.hasNext()) {
+          break;
+        }
+        elem2 = it2.next();
+      }
+    }
+
+    return result;
+  }
+
+  public static <E> Set<E> generalizedUnion(Set<E> pSet1, Set<E> pSet2) {
+    Set<E> result = new HashSet<>();
       E elem;
 
     for (E aPSet1 : pSet1) {
@@ -61,50 +124,17 @@ public final class SetUtil<E extends Comparable<? super E>> {
       return result;
     }
 
-    /**
-     * Computes a new set, that is the intersection of <i>set1</i> and <i>set2</i>.
-     * @param pSet1 a Set.
-     * @param pSet2 the other Set
-     * @return Setintersection.
-     */
-    public static <E extends Comparable<? super E>> SortedSet<E> intersect(SortedSet<E> pSet1,SortedSet<E> pSet2){
-      SortedSet<E> result=new TreeSet<>();
-      Iterator<E> it1 = pSet1.iterator();
-      Iterator<E> it2 = pSet2.iterator();
 
-      if(!it1.hasNext()){
-        return result;
-      }
-      if(!it2.hasNext()){
-        return result;
-      }
+  public static <E> Set<E> generalizedIntersect(Set<E> pSet1, Set<E> pSet2) {
+    Set<E> result = new HashSet<>();
+    E elem;
 
-      E elem1=pSet1.first();
-      E elem2=pSet2.first();
-
-      while(true){
-        if(elem1.compareTo(elem2)==0){
-          result.add(elem1);
-          if(!it1.hasNext()){
-            break;
+    for (E aPSet1 : pSet1) {
+      for (E aPSet2 : pSet2) {
+        if (aPSet1.equals(aPSet2)) {
+          elem = aPSet1;
+          result.add(elem);
           }
-          if(!it2.hasNext()){
-            break;
-          }
-          elem1=it1.next();
-          elem2=it2.next();
-        }
-        if(elem1.compareTo(elem2)<0){
-          if(!it1.hasNext()){
-            break;
-          }
-          elem1=it1.next();
-        }
-        if(elem1.compareTo(elem2)>0){
-          if(!it2.hasNext()){
-            break;
-          }
-          elem2=it2.next();
         }
       }
 

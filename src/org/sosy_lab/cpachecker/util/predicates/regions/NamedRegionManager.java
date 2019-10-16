@@ -29,9 +29,9 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-import com.google.common.primitives.ImmutableIntArray;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -245,7 +245,8 @@ public class NamedRegionManager implements RegionManager {
   }
 
   @Override
-  public void setVarOrder(ImmutableIntArray pOrder) {}
+  public void setVarOrder(ArrayList<Integer> pOrder) {
+  }
 
   @Override
   public void reorder(PredicateOrderingStrategy strategy) {

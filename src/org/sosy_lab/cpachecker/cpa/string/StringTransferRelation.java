@@ -27,7 +27,7 @@ import org.sosy_lab.cpachecker.core.defaults.ForwardingTransferRelation;
 import org.sosy_lab.cpachecker.core.defaults.SingletonPrecision;
 
 public class StringTransferRelation
-    extends ForwardingTransferRelation<CIString, CIString, SingletonPrecision> {
+    extends ForwardingTransferRelation<CIStringState, CIStringState, SingletonPrecision> {
 
 
 

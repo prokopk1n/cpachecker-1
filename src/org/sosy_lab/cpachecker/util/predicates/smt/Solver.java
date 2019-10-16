@@ -95,13 +95,6 @@ public final class Solver implements AutoCloseable {
   description="Extract and cache unsat cores for satisfiability checking")
   private boolean cacheUnsatCores = true;
 
-  @Option(
-      secure = true,
-      description =
-          "whether CPAchecker's logger should be used as logger for the solver, "
-              + "otherwise nothing is logged from the solver.")
-  private boolean enableLoggingInSolver = false;
-
   private final @Nullable UFCheckingProverOptions ufCheckingProverOptions;
 
   private final FormulaManagerView fmgr;
@@ -133,20 +126,9 @@ public final class Solver implements AutoCloseable {
   public int trivialSatChecks = 0;
   public int cachedSatChecks = 0;
 
-  private Solver(
-      Configuration config,
-      LogManager pLogger,
-      ShutdownNotifier shutdownNotifier)
+  private Solver(SolverContextFactory pSolverFactory, Configuration config, LogManager pLogger)
       throws InvalidConfigurationException {
     config.inject(this);
-
-    if (enableLoggingInSolver) {
-      logger = pLogger;
-    } else {
-      logger = LogManager.createNullLogManager();
-    }
-
-    SolverContextFactory solverFactory = new SolverContextFactory(config, logger, shutdownNotifier);
 
     if (solver.equals(interpolationSolver)) {
       // If interpolationSolver is not null, we use SeparateInterpolatingProverEnvironment
@@ -155,11 +137,11 @@ public final class Solver implements AutoCloseable {
       interpolationSolver = null;
     }
 
-    solvingContext = solverFactory.generateContext(solver);
+    solvingContext = pSolverFactory.generateContext(solver);
 
     // Instantiate another SMT solver for interpolation if requested.
     if (interpolationSolver != null) {
-      interpolatingContext = solverFactory.generateContext(interpolationSolver);
+      interpolatingContext = pSolverFactory.generateContext(interpolationSolver);
     } else {
       interpolatingContext = solvingContext;
     }
@@ -169,6 +151,7 @@ public final class Solver implements AutoCloseable {
         pLogger
     );
     bfmgr = fmgr.getBooleanFormulaManager();
+    logger = pLogger;
 
     if (checkUFs) {
       ufCheckingProverOptions = new UFCheckingProverOptions(config);
@@ -243,7 +226,8 @@ public final class Solver implements AutoCloseable {
               .setOption(SOLVER_OPTION_NON_LINEAR_ARITHMETIC, "APPROXIMATE_ALWAYS")
               .build();
     }
-    return new Solver(config, logger, shutdownNotifier);
+    SolverContextFactory factory = new SolverContextFactory(config, logger, shutdownNotifier);
+    return new Solver(factory, config, logger);
   }
 
   /**

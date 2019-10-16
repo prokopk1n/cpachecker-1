@@ -327,7 +327,7 @@ public class AssignmentToPathAllocator {
 
     private Value asValue(Object pValue) {
 
-      if (!(pValue instanceof Number)) {
+      if (pValue == null || !(pValue instanceof Number)) {
         return Value.UnknownValue.getInstance();
       }
 

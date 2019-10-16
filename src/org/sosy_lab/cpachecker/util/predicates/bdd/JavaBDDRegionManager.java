@@ -30,7 +30,6 @@ import static org.sosy_lab.cpachecker.util.statistics.StatisticsWriter.writingSt
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
-import com.google.common.primitives.ImmutableIntArray;
 import java.io.PrintStream;
 import java.lang.ref.PhantomReference;
 import java.lang.ref.Reference;
@@ -69,7 +68,6 @@ import org.sosy_lab.java_smt.api.Formula;
 import org.sosy_lab.java_smt.api.FunctionDeclaration;
 import org.sosy_lab.java_smt.api.QuantifiedFormulaManager.Quantifier;
 import org.sosy_lab.java_smt.api.visitors.BooleanFormulaVisitor;
-
 /**
  * A wrapper for the javabdd (http://javabdd.sf.net) package.
  *
@@ -471,10 +469,10 @@ class JavaBDDRegionManager implements RegionManager {
   }
 
   @Override
-  public void setVarOrder(ImmutableIntArray pVarOrder) {
+  public void setVarOrder(ArrayList<Integer> pVarOrder) {
     int[] order = new int[varcount];
     for (int i = 0; i < order.length; i++) {
-      if (i < pVarOrder.length()) {
+      if (i < pVarOrder.size()) {
         order[i] = pVarOrder.get(i);
       } else {
         order[i] = i;
