@@ -26,10 +26,14 @@ package org.sosy_lab.cpachecker.cpa.string;
 import java.io.Serializable;
 import java.util.Set;
 import java.util.SortedSet;
+import org.sosy_lab.cpachecker.core.defaults.LatticeAbstractState;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
+import org.sosy_lab.cpachecker.cpa.ifcsecurity.util.SetUtil;
 import org.sosy_lab.cpachecker.cpa.smg.util.PersistentSet;
+import org.sosy_lab.cpachecker.exceptions.CPAException;
 
-public class CIStringState implements AbstractState, Serializable {
+public class CIStringState
+    implements AbstractState, Serializable, LatticeAbstractState<CIStringState> {
 
   private static final long serialVersionUID = 1L;
   private PersistentSet<Character> certainly;
@@ -48,36 +52,45 @@ public class CIStringState implements AbstractState, Serializable {
     char[] charArray = str.toCharArray();
 
     for (int i = 0; i < charArray.length; i++) {
-      certainly.addAndCopy(new Character(charArray[i]));
-      maybe.addAndCopy(new Character(charArray[i]));
+      certainly = certainly.addAndCopy(new Character(charArray[i]));
+      maybe = maybe.addAndCopy(new Character(charArray[i]));
     }
+  }
+
+  private CIStringState(PersistentSet<Character> pCertainly, PersistentSet<Character> pMaybe) {
+    certainly = pCertainly;
+    maybe = pMaybe;
+  }
+
+  public CIStringState copyOf() {
+    return new CIStringState(certainly, maybe);
   }
 
   public final static CIStringState BOTTOM = new CIStringState();
 
-  public void SetCertainly(Set<Character> set) {
-    certainly.removeAllAndCopy();
-    certainly.addAllAndCopy(set);
+  public void setCertainly(Set<Character> set) {
+    certainly = certainly.removeAllAndCopy();
+    certainly = certainly.addAllAndCopy(set);
   }
 
-  public void SetMaybe(Set<Character> set) {
-    maybe.removeAllAndCopy();
-    maybe.addAllAndCopy(set);
+  public void setMaybe(Set<Character> set) {
+    maybe = maybe.removeAllAndCopy();
+    maybe = maybe.addAllAndCopy(set);
   }
 
-  public void AddToSertainly(Set<Character> set) {
-    certainly.addAllAndCopy(set);
+  public void addToSertainly(Set<Character> set) {
+    certainly = certainly.addAllAndCopy(set);
   }
 
-  public void AddToMaybe(SortedSet<Character> set) {
-    maybe.addAllAndCopy(set);
+  public void addToMaybe(SortedSet<Character> set) {
+    maybe = maybe.addAllAndCopy(set);
   }
 
-  public PersistentSet<Character> GetCertainly() {
+  public PersistentSet<Character> getCertainly() {
     return certainly;
   }
 
-  public PersistentSet<Character> GetMaybe() {
+  public PersistentSet<Character> getMaybe() {
     return maybe;
   }
 
@@ -85,7 +98,7 @@ public class CIStringState implements AbstractState, Serializable {
   public boolean equals(Object pObj) {
     CIStringState other = (CIStringState) pObj;
     if (other != null) {
-      return certainly.equals(other.GetCertainly()) && maybe.equals(other.GetMaybe());
+      return certainly.equals(other.getCertainly()) && maybe.equals(other.getMaybe());
     }
     return false;
   }
@@ -98,5 +111,32 @@ public class CIStringState implements AbstractState, Serializable {
   @Override
   public String toString() {
     return "(" + certainly.toString() + ", " + maybe.toString() + ")";
+  }
+
+  @Override
+  public CIStringState join(CIStringState pOther) throws CPAException, InterruptedException {
+
+    if (pOther == null) {
+      return null;
+    }
+
+    CIStringState str = new CIStringState();
+
+    str.setCertainly(SetUtil.generalizedIntersect(this.getCertainly().asSet(), pOther.getCertainly().asSet()));
+    str.setMaybe(SetUtil.generalizedUnion(this.getMaybe().asSet(), pOther.getMaybe().asSet()));
+    return str;
+  }
+
+  @Override
+  public boolean isLessOrEqual(CIStringState pOther) throws CPAException, InterruptedException {
+
+    if (pOther != null) {
+      if (this.equals(CIStringState.BOTTOM)) {
+        return true;
+      }
+      return this.getCertainly().containsAll(pOther.getCertainly().asSet())
+          && pOther.getMaybe().containsAll(this.getMaybe().asSet());
+    }
+    return false;
   }
 }

@@ -23,23 +23,49 @@
  */
 package org.sosy_lab.cpachecker.cpa.string;
 
+import org.sosy_lab.common.configuration.Configuration;
+import org.sosy_lab.common.configuration.InvalidConfigurationException;
+import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.core.defaults.AbstractCPA;
 import org.sosy_lab.cpachecker.core.defaults.AutomaticCPAFactory;
-import org.sosy_lab.cpachecker.core.interfaces.AbstractDomain;
+import org.sosy_lab.cpachecker.core.defaults.DelegateAbstractDomain;
 import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.core.interfaces.CPAFactory;
+import org.sosy_lab.cpachecker.core.interfaces.MergeOperator;
 import org.sosy_lab.cpachecker.core.interfaces.StateSpacePartition;
+import org.sosy_lab.cpachecker.core.interfaces.StopOperator;
 import org.sosy_lab.cpachecker.core.interfaces.TransferRelation;
 
 @Options(prefix = "cpa.string")
 
 public class StringCPA extends AbstractCPA {
 
-  protected StringCPA(AbstractDomain pDomain, TransferRelation pTransfer) {
-    super("SEP", "JOIN", pDomain, pTransfer);
-    // TODO Auto-generated constructor stub
+  @Option(
+    secure = true,
+    name = "merge",
+    toUppercase = true,
+    values = {"SEP", "JOIN"},
+    description = "which merge operator to use for SignCPA")
+  private String mergeType = "SEP";
+
+  @Option(
+    secure = true,
+    name = "stop",
+    toUppercase = true,
+    values = {"SEP", "JOIN"},
+    description = "which stop operator to use for SignCPA")
+  private String stopType = "JOIN";
+
+  /*
+   * protected StringCPA(AbstractDomain pDomain, TransferRelation pTransfer) { super(pDomain,
+   * pTransfer); }
+   */
+
+  protected StringCPA(Configuration config) throws InvalidConfigurationException {
+    super("SEP", "JOIN", DelegateAbstractDomain.<CIStringState>getInstance(), null);
+    config.inject(this);
   }
 
   @Override
@@ -48,8 +74,22 @@ public class StringCPA extends AbstractCPA {
     return CIStringState.BOTTOM;
   }
 
+  @Override
+  public TransferRelation getTransferRelation() {
+    return new StringTransferRelation();
+  }
+
   public static CPAFactory factory() {
     return AutomaticCPAFactory.forType(StringCPA.class);
   }
 
+  @Override
+  public MergeOperator getMergeOperator() {
+    return buildMergeOperator(mergeType);
+  }
+
+  @Override
+  public StopOperator getStopOperator() {
+    return buildStopOperator(stopType);
+  }
 }

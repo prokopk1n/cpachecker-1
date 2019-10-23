@@ -56,22 +56,30 @@ public class PersistentSet<K> implements Iterable<K> {
     return new PersistentSet<>(delegate.removeAndCopy(key));
   }
 
-  public void addAllAndCopy(Set<K> keys) {
-    Iterator<K> iter = keys.iterator();
-    while (iter.hasNext()) {
-      this.addAndCopy(iter.next());
-    }
-  }
-
-  public void removeAllAndCopy() {
-    Iterator<K> iter = this.asSet().iterator();
-    while (iter.hasNext()) {
-      this.removeAndCopy(iter.next());
-    }
-  }
-
   public boolean contains(K key) {
     return delegate.containsKey(key);
+  }
+
+  public PersistentSet<K> addAllAndCopy(Set<K> keys) {
+    PersistentSet<K> pSet = this;
+
+    Iterator<K> iter = keys.iterator();
+    while (iter.hasNext()) {
+      pSet = pSet.addAndCopy(iter.next());
+    }
+
+    return pSet;
+  }
+
+  public PersistentSet<K> removeAllAndCopy() {
+    PersistentSet<K> pSet = this;
+
+    Iterator<K> iter = pSet.iterator();
+    while (iter.hasNext()) {
+      pSet = pSet.removeAndCopy(iter.next());
+    }
+
+    return pSet;
   }
 
   public boolean containsAll(Set<K> keys) {
