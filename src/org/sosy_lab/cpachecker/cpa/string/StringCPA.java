@@ -71,7 +71,7 @@ public class StringCPA extends AbstractCPA {
   @Override
   public AbstractState getInitialState(CFANode pNode, StateSpacePartition pPartition)
       throws InterruptedException {
-    return CIStringState.BOTTOM;
+    return new CIStringState();
   }
 
   @Override

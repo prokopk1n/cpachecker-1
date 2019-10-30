@@ -24,119 +24,113 @@
 package org.sosy_lab.cpachecker.cpa.string;
 
 import java.io.Serializable;
-import java.util.Set;
-import java.util.SortedSet;
+import org.sosy_lab.common.collect.PathCopyingPersistentTreeMap;
+import org.sosy_lab.common.collect.PersistentMap;
 import org.sosy_lab.cpachecker.core.defaults.LatticeAbstractState;
-import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
-import org.sosy_lab.cpachecker.cpa.ifcsecurity.util.SetUtil;
-import org.sosy_lab.cpachecker.cpa.smg.util.PersistentSet;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
 
 public class CIStringState
-    implements AbstractState, Serializable, LatticeAbstractState<CIStringState> {
-
+    implements Serializable, LatticeAbstractState<CIStringState> {
   private static final long serialVersionUID = 1L;
-  private PersistentSet<Character> certainly;
-  private PersistentSet<Character> maybe;
 
-  CIStringState() {
-    certainly = PersistentSet.of();
-    maybe = PersistentSet.of();
+  private final PersistentMap<String, CIString> ciDomains;
+
+  public CIStringState() {
+    ciDomains = PathCopyingPersistentTreeMap.of();
   }
 
-  CIStringState(String str) {
+  public CIStringState(PersistentMap<String, CIString> ciDomains) {
+    this.ciDomains = ciDomains;
+  }
 
-    certainly = PersistentSet.of();
-    maybe = PersistentSet.of();
+  public CIString getCIString(String stringName) {
+    return ciDomains.getOrDefault(stringName, CIString.BOTTOM);
+  }
 
-    char[] charArray = str.toCharArray();
+  public boolean contains(String stringName) {
+    return ciDomains.containsKey(stringName);
+  }
 
-    for (int i = 0; i < charArray.length; i++) {
-      certainly = certainly.addAndCopy(new Character(charArray[i]));
-      maybe = maybe.addAndCopy(new Character(charArray[i]));
+  public CIStringState addCIString(String stringName, CIString ciString)
+      throws CPAException, InterruptedException {
+
+    if (ciString.isBottom()) {
+      return removeCIString(stringName);
     }
-  }
-
-  private CIStringState(PersistentSet<Character> pCertainly, PersistentSet<Character> pMaybe) {
-    certainly = pCertainly;
-    maybe = pMaybe;
-  }
-
-  public CIStringState copyOf() {
-    return new CIStringState(certainly, maybe);
-  }
-
-  public final static CIStringState BOTTOM = new CIStringState();
-
-  public void setCertainly(Set<Character> set) {
-    certainly = certainly.removeAllAndCopy();
-    certainly = certainly.addAllAndCopy(set);
-  }
-
-  public void setMaybe(Set<Character> set) {
-    maybe = maybe.removeAllAndCopy();
-    maybe = maybe.addAllAndCopy(set);
-  }
-
-  public void addToSertainly(Set<Character> set) {
-    certainly = certainly.addAllAndCopy(set);
-  }
-
-  public void addToMaybe(SortedSet<Character> set) {
-    maybe = maybe.addAllAndCopy(set);
-  }
-
-  public PersistentSet<Character> getCertainly() {
-    return certainly;
-  }
-
-  public PersistentSet<Character> getMaybe() {
-    return maybe;
-  }
-
-  @Override
-  public boolean equals(Object pObj) {
-    CIStringState other = (CIStringState) pObj;
-    if (other != null) {
-      return certainly.equals(other.getCertainly()) && maybe.equals(other.getMaybe());
+    if (!ciDomains.containsKey(stringName)) {
+      return new CIStringState(ciDomains.putAndCopy(stringName, ciString));
     }
-    return false;
+    if (!ciDomains.get(stringName).equals(ciString)) {
+      CIString str = (ciDomains.get(stringName)).join(ciString);
+      return new CIStringState(ciDomains.putAndCopy(stringName, str));
+    }
+    return this;
   }
 
-  @Override
-  public int hashCode() {
-    return super.hashCode();
+  public CIStringState removeCIString(String stringName) {
+    if (ciDomains.containsKey(stringName)) {
+      return new CIStringState(ciDomains.removeAndCopy(stringName));
+    }
+    return this;
   }
 
-  @Override
-  public String toString() {
-    return "(" + certainly.toString() + ", " + maybe.toString() + ")";
-  }
-
+  // Join two sets (name, CIString). If exist name from this.keySet() and from pOther.keySet() join
+  // their CIStrings
   @Override
   public CIStringState join(CIStringState pOther) throws CPAException, InterruptedException {
 
-    if (pOther == null) {
-      return null;
+    boolean changed = false;
+    PersistentMap<String, CIString> newCIDomains = PathCopyingPersistentTreeMap.of();
+
+    for (String stringName : pOther.ciDomains.keySet()) {
+      CIString otherCIString = pOther.getCIString(stringName);
+      if (ciDomains.containsKey(stringName)) {
+        newCIDomains =
+            newCIDomains.putAndCopy(stringName, otherCIString.join(this.getCIString(stringName)));
+        changed = true;
+      } else {
+        newCIDomains = newCIDomains.putAndCopy(stringName, otherCIString);
+      }
     }
 
-    CIStringState str = new CIStringState();
+    for (String stringName : ciDomains.keySet()) {
+      if (!pOther.ciDomains.containsKey(stringName)) {
+        newCIDomains = newCIDomains.putAndCopy(stringName, this.getCIString(stringName));
+        changed = true;
+      }
+    }
 
-    str.setCertainly(SetUtil.generalizedIntersect(this.getCertainly().asSet(), pOther.getCertainly().asSet()));
-    str.setMaybe(SetUtil.generalizedUnion(this.getMaybe().asSet(), pOther.getMaybe().asSet()));
-    return str;
+    if (changed) {
+      return new CIStringState(newCIDomains);
+    }
+    return pOther;
   }
+
+  // return true, if for any our name: (name, CISrting) exist (name, otherCIString) from pOther AND
+  // CIString isLessOrEqual otherString
 
   @Override
   public boolean isLessOrEqual(CIStringState pOther) throws CPAException, InterruptedException {
 
-    if (pOther != null) {
-      if (this.equals(CIStringState.BOTTOM)) {
-        return true;
+    for (String stringName : ciDomains.keySet()) {
+      if (!pOther.ciDomains.containsKey(stringName)) {
+        // maybe it's OK, when this.getCIString(stringName) == ([], []) (BOTTOM) ?
+        return false;
+      } else {
+        if (!(pOther.getCIString(stringName)).isLessOrEqual(this.getCIString(stringName))) {
+          return false;
+        }
       }
-      return this.getCertainly().containsAll(pOther.getCertainly().asSet())
-          && pOther.getMaybe().containsAll(this.getMaybe().asSet());
     }
-    return false;
+    return true;
+  }
+
+  @Override
+  public String toString() {
+    String str = new String();
+    for (String stringName : ciDomains.keySet()) {
+      str = str + "(" + stringName + " = " + getCIString(stringName).toString() + "), ";
+    }
+    return str;
   }
 }

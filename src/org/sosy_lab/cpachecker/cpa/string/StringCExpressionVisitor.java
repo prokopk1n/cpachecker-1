@@ -46,8 +46,8 @@ import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
 
 public class StringCExpressionVisitor
-  extends DefaultCExpressionVisitor<CIStringState, UnrecognizedCodeException>
-  implements CRightHandSideVisitor<CIStringState, UnrecognizedCodeException> {
+    extends DefaultCExpressionVisitor<CIString, UnrecognizedCodeException>
+    implements CRightHandSideVisitor<CIString, UnrecognizedCodeException> {
 
   private CFAEdge cfaEdge;
   private CIStringState state;
@@ -60,12 +60,12 @@ public class StringCExpressionVisitor
   }
 
   @Override
-  protected CIStringState visitDefault(CExpression pExp) {
-    return state;
+  protected CIString visitDefault(CExpression pExp) {
+    return CIString.BOTTOM;
   }
 
   @Override
-  public CIStringState visit(CArraySubscriptExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CArraySubscriptExpression e) throws UnrecognizedCodeException {
 
     CExpression exp = e.getArrayExpression();
 
@@ -75,84 +75,86 @@ public class StringCExpressionVisitor
     if (exp instanceof CStringLiteralExpression) {
       return visit((CStringLiteralExpression) exp);
     }
-
+    if (exp instanceof CIdExpression) {
+      return visit((CIdExpression) exp);
+    }
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CCharLiteralExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CCharLiteralExpression e) throws UnrecognizedCodeException {
     char exp = e.getCharacter();
-    return new CIStringState(Character.toString(exp));
+    return new CIString(Character.toString(exp));
   }
 
   @Override
-  public CIStringState visit(CStringLiteralExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CStringLiteralExpression e) throws UnrecognizedCodeException {
     String exp = e.getContentString();
-    return new CIStringState(exp);
+    return new CIString(exp);
   }
 
   @Override
-  public CIStringState visit(CBinaryExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CBinaryExpression e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CCastExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CCastExpression e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CComplexCastExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CComplexCastExpression e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CFieldReference e) throws UnrecognizedCodeException {
+  public CIString visit(CFieldReference e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CIdExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CIdExpression e) throws UnrecognizedCodeException {
+    return state.getCIString(e.getDeclaration().getQualifiedName());
+  }
+
+  @Override
+  public CIString visit(CImaginaryLiteralExpression e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CImaginaryLiteralExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CFloatLiteralExpression e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CFloatLiteralExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CIntegerLiteralExpression e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CIntegerLiteralExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CTypeIdExpression e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CTypeIdExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CUnaryExpression e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CUnaryExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CPointerExpression e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CPointerExpression e) throws UnrecognizedCodeException {
+  public CIString visit(CAddressOfLabelExpression e) throws UnrecognizedCodeException {
     return visitDefault(e);
   }
 
   @Override
-  public CIStringState visit(CAddressOfLabelExpression e) throws UnrecognizedCodeException {
-    return visitDefault(e);
-  }
-
-  @Override
-  public CIStringState visit(CFunctionCallExpression pIastFunctionCallExpression)
+  public CIString visit(CFunctionCallExpression pIastFunctionCallExpression)
       throws UnrecognizedCodeException {
     // TODO Auto-generated method stub
     return null;
