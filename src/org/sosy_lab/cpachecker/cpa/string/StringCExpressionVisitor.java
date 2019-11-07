@@ -66,31 +66,17 @@ public class StringCExpressionVisitor
 
   @Override
   public CIString visit(CArraySubscriptExpression e) throws UnrecognizedCodeException {
-
-    CExpression exp = e.getArrayExpression();
-
-    if (exp instanceof CCharLiteralExpression) {
-      return visit((CCharLiteralExpression) exp);
-    }
-    if (exp instanceof CStringLiteralExpression) {
-      return visit((CStringLiteralExpression) exp);
-    }
-    if (exp instanceof CIdExpression) {
-      return visit((CIdExpression) exp);
-    }
-    return visitDefault(e);
+    return (e.getArrayExpression()).accept(this);
   }
 
   @Override
   public CIString visit(CCharLiteralExpression e) throws UnrecognizedCodeException {
-    char exp = e.getCharacter();
-    return new CIString(Character.toString(exp));
+    return new CIString(Character.toString(e.getCharacter()));
   }
 
   @Override
   public CIString visit(CStringLiteralExpression e) throws UnrecognizedCodeException {
-    String exp = e.getContentString();
-    return new CIString(exp);
+    return new CIString(e.getContentString());
   }
 
   @Override
@@ -100,7 +86,7 @@ public class StringCExpressionVisitor
 
   @Override
   public CIString visit(CCastExpression e) throws UnrecognizedCodeException {
-    return visitDefault(e);
+    return e.getOperand().accept(this);
   }
 
   @Override
@@ -110,7 +96,7 @@ public class StringCExpressionVisitor
 
   @Override
   public CIString visit(CFieldReference e) throws UnrecognizedCodeException {
-    return visitDefault(e);
+    return state.getCIString(e.toQualifiedASTString());
   }
 
   @Override
@@ -145,6 +131,7 @@ public class StringCExpressionVisitor
 
   @Override
   public CIString visit(CPointerExpression e) throws UnrecognizedCodeException {
+    // return (e.getOperand()).accept(this);
     return visitDefault(e);
   }
 
@@ -157,7 +144,8 @@ public class StringCExpressionVisitor
   public CIString visit(CFunctionCallExpression pIastFunctionCallExpression)
       throws UnrecognizedCodeException {
     // TODO Auto-generated method stub
-    return null;
+    // return null;
+    return CIString.BOTTOM;
   }
 
 }

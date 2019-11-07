@@ -111,13 +111,12 @@ public class CIStringState
 
   @Override
   public boolean isLessOrEqual(CIStringState pOther) throws CPAException, InterruptedException {
-
+    // TODO: is it correct?
     for (String stringName : ciDomains.keySet()) {
       if (!pOther.ciDomains.containsKey(stringName)) {
-        // maybe it's OK, when this.getCIString(stringName) == ([], []) (BOTTOM) ?
         return false;
       } else {
-        if (!(pOther.getCIString(stringName)).isLessOrEqual(this.getCIString(stringName))) {
+        if (!(this.getCIString(stringName)).isLessOrEqual(pOther.getCIString(stringName))) {
           return false;
         }
       }
