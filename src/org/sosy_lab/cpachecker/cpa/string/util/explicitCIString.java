@@ -21,30 +21,25 @@
  *  CPAchecker web page:
  *    http://cpachecker.sosy-lab.org
  */
-package org.sosy_lab.cpachecker.cpa.string;
+package org.sosy_lab.cpachecker.cpa.string.util;
 
-import java.io.Serializable;
 import java.util.Set;
 import java.util.SortedSet;
-import org.sosy_lab.cpachecker.core.defaults.LatticeAbstractState;
-import org.sosy_lab.cpachecker.core.interfaces.AbstractState;
 import org.sosy_lab.cpachecker.cpa.ifcsecurity.util.SetUtil;
 import org.sosy_lab.cpachecker.cpa.smg.util.PersistentSet;
-import org.sosy_lab.cpachecker.exceptions.CPAException;
 
-public class CIString
-    implements AbstractState, Serializable, LatticeAbstractState<CIString> {
+public class explicitCIString implements CIString {
 
   private static final long serialVersionUID = 1L;
   private PersistentSet<Character> certainly;
   private PersistentSet<Character> maybe;
 
-  CIString() {
+  explicitCIString() {
     certainly = PersistentSet.of();
     maybe = PersistentSet.of();
   }
 
-  CIString(String str) {
+  public explicitCIString(String str) {
 
     certainly = PersistentSet.of();
     maybe = PersistentSet.of();
@@ -57,19 +52,39 @@ public class CIString
     }
   }
 
-  private CIString(PersistentSet<Character> pCertainly, PersistentSet<Character> pMaybe) {
+  private explicitCIString(PersistentSet<Character> pCertainly, PersistentSet<Character> pMaybe) {
     certainly = pCertainly;
     maybe = pMaybe;
   }
 
-  public CIString copyOf() {
-    return new CIString(certainly, maybe);
+  public explicitCIString copyOf() {
+    return new explicitCIString(certainly, maybe);
   }
 
-  public final static CIString BOTTOM = new CIString();
+  public final static explicitCIString EMPTY = new explicitCIString();
 
+  public boolean isEmpty() {
+    return equals(explicitCIString.EMPTY);
+  }
+
+  @Override
   public boolean isBottom() {
-    return this.equals(CIString.BOTTOM);
+    return false;
+  }
+
+  @Override
+  public boolean equals(Object pObj) {
+
+    if (!(pObj instanceof CIString)) {
+      return false;
+    }
+    explicitCIString other = (explicitCIString) pObj;
+
+    if (other.isBottom()) {
+      return false;
+    }
+
+    return certainly.equals(other.getCertainly()) && maybe.equals(other.getMaybe());
   }
 
   public void setCertainly(Set<Character> set) {
@@ -90,21 +105,48 @@ public class CIString
     maybe = maybe.addAllAndCopy(set);
   }
 
+  @Override
   public PersistentSet<Character> getCertainly() {
     return certainly;
   }
 
+  @Override
   public PersistentSet<Character> getMaybe() {
     return maybe;
   }
 
   @Override
-  public boolean equals(Object pObj) {
-    CIString other = (CIString) pObj;
-    if (other != null) {
-      return certainly.equals(other.getCertainly()) && maybe.equals(other.getMaybe());
+  public CIString join(CIString pOther) {
+    // if (pOther == null) {
+    // return null;
+    // }
+
+    if(pOther.isBottom()) {
+      return bottomCIString.INSTANCE;
     }
-    return false;
+
+    explicitCIString str = new explicitCIString();
+
+    str.setCertainly(
+        SetUtil.generalizedIntersect(this.getCertainly().asSet(), pOther.getCertainly().asSet()));
+    str.setMaybe(SetUtil.generalizedUnion(this.getMaybe().asSet(), pOther.getMaybe().asSet()));
+
+    return str;
+  }
+
+  @Override
+  public boolean isLessOrEqual(CIString pOther) {
+
+    if (pOther.isBottom()) {
+      return false;
+    }
+
+    if(isEmpty()) {
+      return true;
+    }
+    return this.getCertainly().containsAll(pOther.getCertainly().asSet())
+        && pOther.getMaybe().containsAll(this.getMaybe().asSet());
+
   }
 
   @Override
@@ -117,30 +159,4 @@ public class CIString
     return "(" + certainly.toString() + ", " + maybe.toString() + ")";
   }
 
-  @Override
-  public CIString join(CIString pOther) throws CPAException, InterruptedException {
-    if (pOther == null) {
-      return null;
-    }
-
-    CIString str = new CIString();
-
-    str.setCertainly(
-        SetUtil.generalizedIntersect(this.getCertainly().asSet(), pOther.getCertainly().asSet()));
-    str.setMaybe(SetUtil.generalizedUnion(this.getMaybe().asSet(), pOther.getMaybe().asSet()));
-    return str;
-  }
-
-  @Override
-  public boolean isLessOrEqual(CIString pOther) throws CPAException, InterruptedException {
-
-    if (pOther != null) {
-      if (this.equals(CIString.BOTTOM)) {
-        return true;
-      }
-      return this.getCertainly().containsAll(pOther.getCertainly().asSet())
-          && pOther.getMaybe().containsAll(this.getMaybe().asSet());
-    }
-    return false;
-  }
 }

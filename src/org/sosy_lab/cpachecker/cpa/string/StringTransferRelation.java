@@ -36,6 +36,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFieldReference;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCall;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallAssignmentStatement;
+import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CFunctionCallStatement;
 import org.sosy_lab.cpachecker.cfa.ast.c.CIdExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CInitializerExpression;
@@ -55,7 +56,7 @@ import org.sosy_lab.cpachecker.cfa.model.c.CStatementEdge;
 import org.sosy_lab.cpachecker.core.defaults.ForwardingTransferRelation;
 import org.sosy_lab.cpachecker.core.defaults.SingletonPrecision;
 import org.sosy_lab.cpachecker.cpa.ifcsecurity.util.SetUtil;
-import org.sosy_lab.cpachecker.exceptions.CPAException;
+import org.sosy_lab.cpachecker.cpa.string.util.CIString;
 import org.sosy_lab.cpachecker.exceptions.CPATransferException;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
 
@@ -80,9 +81,9 @@ public class StringTransferRelation
       CIStringState newState = state;
       try {
         newState =
-            addCIString(
+            removeAndAddCIString(
                 newState,
-                ((CIdExpression) ass.getLeftHandSide()).getDeclaration().getQualifiedName(),
+                ass.getLeftHandSide(),
                 ((CExpression) ass.getRightHandSide()).accept(visitor));
         return newState;
 
@@ -120,7 +121,7 @@ public class StringTransferRelation
     CIString ciStr2 = operand2.accept(visitor);
 
     // if we don't check this cpastring will break on (x == 1) for example
-    if (!ciStr1.isBottom() || !ciStr2.isBottom()) {
+    if (!ciStr1.isBottom() && !ciStr2.isBottom()) {
 
       Set<Character> set =
         SetUtil.generalizedIntersect(ciStr1.getMaybe().asSet(), ciStr2.getMaybe().asSet());
@@ -168,8 +169,7 @@ public class StringTransferRelation
     CExpression exp = init.getExpression();
 
     newState =
-        addCIString(
-            newState,
+        newState.removeAndAddCIString(
             decl.getQualifiedName(),
             evaluateCIString(newState, exp, declarationEdge));
 
@@ -181,8 +181,18 @@ public class StringTransferRelation
   protected CIStringState handleStatementEdge(CStatementEdge cfaEdge, CStatement statement)
       throws UnrecognizedCodeException {
 
-    // expression is an assignment operation, e.g. a = b;
-    if (statement instanceof CAssignment) {
+    if (statement instanceof CFunctionCall) {
+      CIStringState newState = state;
+      CFunctionCall fCall = (CFunctionCall) statement;
+      CFunctionCallExpression fCallExp = fCall.getFunctionCallExpression();
+      CExpression fNameExpression = fCallExp.getFunctionNameExpression();
+
+      if (fNameExpression instanceof CIdExpression) {
+        String func = ((CIdExpression) fNameExpression).getName();
+        // TODO: add ...
+      }
+      return newState;
+    } else if (statement instanceof CAssignment) {
       return handleAssignment((CAssignment) statement, cfaEdge);
     }
     return state;
@@ -190,25 +200,13 @@ public class StringTransferRelation
 
   private CIStringState handleAssignment(CAssignment assignExpression, CStatementEdge cfaEdge)
       throws UnrecognizedCodeException {
+
     CIStringState newState = state;
 
     CExpression op1 = assignExpression.getLeftHandSide();
     CRightHandSide op2 = assignExpression.getRightHandSide();
 
-    if (op1 instanceof CIdExpression) {
-      return addCIString(newState, op1, evaluateCIString(newState, op2, cfaEdge));
-    } else if (op1 instanceof CArraySubscriptExpression) {
-      op1 = ((CArraySubscriptExpression) op1).getArrayExpression();
-      return addCIString(newState, op1, evaluateCIString(newState, op2, cfaEdge));
-    } else if (op1 instanceof CFieldReference) {
-      newState =
-          addCIString(
-              newState,
-              op1.toQualifiedASTString(),
-              evaluateCIString(newState, op2, cfaEdge));
-    }
-
-    return newState;
+    return removeAndAddCIString(newState, op1, evaluateCIString(newState, op2, cfaEdge));
 
   }
 
@@ -227,7 +225,7 @@ public class StringTransferRelation
       CIString ciString = evaluateCIString(newState, arguments.get(i), cfaEdge);
       String formalParameterName = parameters.get(i).getQualifiedName();
 
-      newState = addCIString(newState, formalParameterName, ciString);
+      newState = newState.removeAndAddCIString(formalParameterName, ciString);
 
     }
 
@@ -254,7 +252,7 @@ public class StringTransferRelation
 
       if (state.contains(retVar.get().getQualifiedName())) {
         newState =
-            addCIString(
+            removeAndAddCIString(
                 newState,
                 funcExp.getLeftHandSide(),
                 state.getCIString(retVar.get().getQualifiedName()));
@@ -269,25 +267,42 @@ public class StringTransferRelation
     return newState;
   }
 
-  private CIStringState addCIString(CIStringState newState, String name, CIString ciString) {
-    try {
-      newState = newState.addCIString(name, ciString);
-    } catch (CPAException | InterruptedException e) {
-      e.printStackTrace();
+  private CIStringState
+      removeAndAddCIString(CIStringState newState, CExpression expression, CIString ciString) {
+
+    if (expression instanceof CArraySubscriptExpression) {
+      expression = ((CArraySubscriptExpression) expression).getArrayExpression();
+      newState = addCIString(newState, expression, ciString);
     }
+
+    if (expression instanceof CIdExpression) {
+        newState =
+          newState.removeAndAddCIString(
+              ((CIdExpression) expression).getDeclaration().getQualifiedName(),
+                ciString);
+    } else if (expression instanceof CFieldReference) {
+      newState = newState.removeAndAddCIString(expression.toQualifiedASTString(), ciString);
+    }
+
     return newState;
   }
 
   private CIStringState
       addCIString(CIStringState newState, CExpression expression, CIString ciString) {
 
-    if (expression instanceof CIdExpression) {
-        newState =
-            addCIString(
-                newState,
-              ((CIdExpression) expression).getDeclaration().getQualifiedName(),
-                ciString);
+    if (expression instanceof CArraySubscriptExpression) {
+      expression = ((CArraySubscriptExpression) expression).getArrayExpression();
     }
+    if (expression instanceof CIdExpression) {
+
+      newState =
+          newState.addCIString(
+              ((CIdExpression) expression).getDeclaration().getQualifiedName(),
+              ciString);
+    } else if (expression instanceof CFieldReference) {
+      newState = newState.addCIString(expression.toQualifiedASTString(), ciString);
+    }
+
     return newState;
   }
 

@@ -43,25 +43,26 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CTypeIdExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CUnaryExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.DefaultCExpressionVisitor;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
+import org.sosy_lab.cpachecker.cpa.string.util.CIString;
+import org.sosy_lab.cpachecker.cpa.string.util.bottomCIString;
+import org.sosy_lab.cpachecker.cpa.string.util.explicitCIString;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
 
 public class StringCExpressionVisitor
     extends DefaultCExpressionVisitor<CIString, UnrecognizedCodeException>
     implements CRightHandSideVisitor<CIString, UnrecognizedCodeException> {
 
-  private CFAEdge cfaEdge;
-  private CIStringState state;
+  private final CFAEdge cfaEdge;
+  private final CIStringState state;
 
-  public StringCExpressionVisitor(
-      CFAEdge pEdgeOfExpr,
-      CIStringState pState) {
-    cfaEdge = pEdgeOfExpr;
+  public StringCExpressionVisitor(CFAEdge edge, CIStringState pState) {
+    cfaEdge = edge;
     state = pState;
   }
 
   @Override
   protected CIString visitDefault(CExpression pExp) {
-    return CIString.BOTTOM;
+    return bottomCIString.INSTANCE;
   }
 
   @Override
@@ -71,12 +72,12 @@ public class StringCExpressionVisitor
 
   @Override
   public CIString visit(CCharLiteralExpression e) throws UnrecognizedCodeException {
-    return new CIString(Character.toString(e.getCharacter()));
+    return new explicitCIString(Character.toString(e.getCharacter()));
   }
 
   @Override
   public CIString visit(CStringLiteralExpression e) throws UnrecognizedCodeException {
-    return new CIString(e.getContentString());
+    return new explicitCIString(e.getContentString());
   }
 
   @Override
@@ -131,8 +132,7 @@ public class StringCExpressionVisitor
 
   @Override
   public CIString visit(CPointerExpression e) throws UnrecognizedCodeException {
-    // return (e.getOperand()).accept(this);
-    return visitDefault(e);
+    return (e.getOperand()).accept(this);
   }
 
   @Override
@@ -143,9 +143,7 @@ public class StringCExpressionVisitor
   @Override
   public CIString visit(CFunctionCallExpression pIastFunctionCallExpression)
       throws UnrecognizedCodeException {
-    // TODO Auto-generated method stub
-    // return null;
-    return CIString.BOTTOM;
+    return bottomCIString.INSTANCE;
   }
 
 }

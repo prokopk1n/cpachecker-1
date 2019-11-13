@@ -27,6 +27,8 @@ import java.io.Serializable;
 import org.sosy_lab.common.collect.PathCopyingPersistentTreeMap;
 import org.sosy_lab.common.collect.PersistentMap;
 import org.sosy_lab.cpachecker.core.defaults.LatticeAbstractState;
+import org.sosy_lab.cpachecker.cpa.string.util.CIString;
+import org.sosy_lab.cpachecker.cpa.string.util.explicitCIString;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
 
 public class CIStringState
@@ -44,15 +46,14 @@ public class CIStringState
   }
 
   public CIString getCIString(String stringName) {
-    return ciDomains.getOrDefault(stringName, CIString.BOTTOM);
+    return ciDomains.getOrDefault(stringName, explicitCIString.EMPTY);
   }
 
   public boolean contains(String stringName) {
     return ciDomains.containsKey(stringName);
   }
 
-  public CIStringState addCIString(String stringName, CIString ciString)
-      throws CPAException, InterruptedException {
+  public CIStringState addCIString(String stringName, CIString ciString) {
 
     if (ciString.isBottom()) {
       return removeCIString(stringName);
@@ -65,6 +66,17 @@ public class CIStringState
       return new CIStringState(ciDomains.putAndCopy(stringName, str));
     }
     return this;
+  }
+
+  public CIStringState removeAndAddCIString(String stringName, CIString ciString) {
+
+    CIStringState newStState = removeCIString(stringName);
+
+    if (!ciString.isBottom()) {
+      return new CIStringState(newStState.ciDomains.putAndCopy(stringName, ciString));
+    }
+
+    return newStState;
   }
 
   public CIStringState removeCIString(String stringName) {
