@@ -43,6 +43,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CTypeIdExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CUnaryExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.DefaultCExpressionVisitor;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
+import org.sosy_lab.cpachecker.cpa.ifcsecurity.util.SetUtil;
 import org.sosy_lab.cpachecker.cpa.string.util.CIString;
 import org.sosy_lab.cpachecker.cpa.string.util.bottomCIString;
 import org.sosy_lab.cpachecker.cpa.string.util.explicitCIString;
@@ -54,10 +55,12 @@ public class StringCExpressionVisitor
 
   private final CFAEdge cfaEdge;
   private final CIStringState state;
+  private final BuiltinFunctions builtins;
 
-  public StringCExpressionVisitor(CFAEdge edge, CIStringState pState) {
+  public StringCExpressionVisitor(CFAEdge edge, CIStringState pState, BuiltinFunctions pBuiltins) {
     cfaEdge = edge;
     state = pState;
+    builtins = pBuiltins;
   }
 
   @Override
@@ -141,9 +144,121 @@ public class StringCExpressionVisitor
   }
 
   @Override
-  public CIString visit(CFunctionCallExpression pIastFunctionCallExpression)
+  public CIString visit(CFunctionCallExpression fCallExpression)
       throws UnrecognizedCodeException {
+
+    CExpression fNameExpression = fCallExpression.getFunctionNameExpression();
+
+    if (fNameExpression instanceof CIdExpression) {
+      String funcName = ((CIdExpression) fNameExpression).getName();
+
+      if (builtins.isABuiltin(funcName)) {
+        return evaluateFunctionExpression(funcName, fCallExpression);
+      }
+    }
     return bottomCIString.INSTANCE;
   }
 
+  private CIString evaluateFunctionExpression(
+      String fName,
+      CFunctionCallExpression expression) {
+    switch (fName) {
+      case "strtok":
+        return evaluateSTRTOK(expression);
+      case "strstr":
+        return evaluateSTRSTR(expression);
+      case "strpbrk":
+        return evaluateSTRSTR(expression);
+      default:
+        return explicitCIString.EMPTY;
+    }
+  }
+
+  private CIString evaluateSTRTOK(CFunctionCallExpression expression) {
+
+    // char *strtok(char *string, const char *delim)
+
+    CExpression s1 = expression.getParameterExpressions().get(0);
+    CExpression s2 = expression.getParameterExpressions().get(1);
+
+    try {
+
+      CIString ciStr1 = s1.accept(this);
+      CIString ciStr2 = s2.accept(this);
+
+      if (ciStr1.isBottom()) {
+        // if string = NULL
+        if (!builtins.isNEW()) {
+          return builtins.getPrevCIString();
+        }
+        return bottomCIString.INSTANCE;
+
+      } else {
+        // if string != NULL
+        explicitCIString exCIStr1 = (explicitCIString) ciStr1;
+
+        if (exCIStr1.isEmpty()) {
+          // if string is empty we return NULL
+          return bottomCIString.INSTANCE;
+        }
+
+        builtins.setNEWFalse();
+
+        // Exists one symbol from delim in string?
+        Boolean isInters =
+            !SetUtil.generalizedIntersect(ciStr1.getMaybe().asSet(), ciStr2.getMaybe().asSet())
+                .isEmpty();
+
+        if (isInters) {
+          // now we can't say which symbols are certainly in string
+          exCIStr1.clearCertainly();
+        }
+        builtins.setPrevCIString(exCIStr1);
+        return exCIStr1;
+      }
+
+    } catch (UnrecognizedCodeException e) {
+      e.printStackTrace();
+    }
+    return explicitCIString.EMPTY;
+  }
+
+  private CIString evaluateSTRSTR(CFunctionCallExpression expression) {
+
+    // char *strstr(const char *str1, const char *str2)
+    CExpression s1 = expression.getParameterExpressions().get(0);
+    CExpression s2 = expression.getParameterExpressions().get(1);
+
+    try {
+
+      CIString ciStr1 = s1.accept(this);
+      CIString ciStr2 = s2.accept(this);
+
+      if (ciStr1.isBottom() || ciStr2.isBottom()) {
+        // ERROR
+        // TODO: write it
+        return bottomCIString.INSTANCE;
+      }
+
+      explicitCIString exCIStr1 = (explicitCIString) ciStr1;
+      explicitCIString exCIStr2 = (explicitCIString) ciStr2;
+
+      if (exCIStr1.isLessOrEqual(exCIStr2)) {
+        // if str2 is found in str1
+        if (exCIStr2.isEmpty()) {
+          return exCIStr1;
+        }
+        // we know only that str2 is in certainly
+        return exCIStr1.join(exCIStr2);
+
+      } else {
+        // if the str2 is not found in str1 return NULL
+        return bottomCIString.INSTANCE;
+      }
+
+    } catch (UnrecognizedCodeException e) {
+      e.printStackTrace();
+    }
+    return explicitCIString.EMPTY;
+  }
 }

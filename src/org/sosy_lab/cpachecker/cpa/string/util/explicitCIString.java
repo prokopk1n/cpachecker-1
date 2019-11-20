@@ -24,7 +24,6 @@
 package org.sosy_lab.cpachecker.cpa.string.util;
 
 import java.util.Set;
-import java.util.SortedSet;
 import org.sosy_lab.cpachecker.cpa.ifcsecurity.util.SetUtil;
 import org.sosy_lab.cpachecker.cpa.smg.util.PersistentSet;
 
@@ -34,7 +33,7 @@ public class explicitCIString implements CIString {
   private PersistentSet<Character> certainly;
   private PersistentSet<Character> maybe;
 
-  explicitCIString() {
+  public explicitCIString() {
     certainly = PersistentSet.of();
     maybe = PersistentSet.of();
   }
@@ -92,6 +91,10 @@ public class explicitCIString implements CIString {
     certainly = certainly.addAllAndCopy(set);
   }
 
+  public void clearCertainly() {
+    certainly = certainly.removeAllAndCopy();
+  }
+
   public void setMaybe(Set<Character> set) {
     maybe = maybe.removeAllAndCopy();
     maybe = maybe.addAllAndCopy(set);
@@ -101,7 +104,7 @@ public class explicitCIString implements CIString {
     certainly = certainly.addAllAndCopy(set);
   }
 
-  public void addToMaybe(SortedSet<Character> set) {
+  public void addToMaybe(Set<Character> set) {
     maybe = maybe.addAllAndCopy(set);
   }
 

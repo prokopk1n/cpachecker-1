@@ -1266,4 +1266,5 @@ public class SMGTransferRelation
   static List<SMGState> asSMGStateList(List<? extends SMGValueAndState> valueAndStateList) {
     return Lists.transform(valueAndStateList, SMGValueAndState::getSmgState);
   }
+
 }

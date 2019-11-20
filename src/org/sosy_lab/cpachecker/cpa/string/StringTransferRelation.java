@@ -57,11 +57,14 @@ import org.sosy_lab.cpachecker.core.defaults.ForwardingTransferRelation;
 import org.sosy_lab.cpachecker.core.defaults.SingletonPrecision;
 import org.sosy_lab.cpachecker.cpa.ifcsecurity.util.SetUtil;
 import org.sosy_lab.cpachecker.cpa.string.util.CIString;
+import org.sosy_lab.cpachecker.cpa.string.util.explicitCIString;
 import org.sosy_lab.cpachecker.exceptions.CPATransferException;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
 
 public class StringTransferRelation
     extends ForwardingTransferRelation<CIStringState, CIStringState, SingletonPrecision> {
+
+  private final BuiltinFunctions builtins = new BuiltinFunctions();
 
   public StringTransferRelation() {
   }
@@ -74,11 +77,11 @@ public class StringTransferRelation
   @Override
   protected CIStringState handleReturnStatementEdge(CReturnStatementEdge returnEdge) {
 
+    CIStringState newState = state;
     if (returnEdge.asAssignment().isPresent()) {
       CAssignment ass = returnEdge.asAssignment().get();
-      StringCExpressionVisitor visitor = new StringCExpressionVisitor(returnEdge, state);
-
-      CIStringState newState = state;
+      StringCExpressionVisitor visitor =
+          new StringCExpressionVisitor(returnEdge, newState, builtins);
       try {
         newState =
             removeAndAddCIString(
@@ -100,6 +103,7 @@ public class StringTransferRelation
       handleAssumption(CAssumeEdge cfaEdge, CExpression expression, boolean truthAssumption)
           throws CPATransferException {
 
+    CIStringState newState = state;
     if (!(expression instanceof CBinaryExpression)) {
       return null;
     }
@@ -116,11 +120,11 @@ public class StringTransferRelation
       return state;
     }
 
-    StringCExpressionVisitor visitor = new StringCExpressionVisitor(cfaEdge, state);
+    StringCExpressionVisitor visitor = new StringCExpressionVisitor(cfaEdge, newState, builtins);
     CIString ciStr1 = operand1.accept(visitor);
     CIString ciStr2 = operand2.accept(visitor);
 
-    // if we don't check this cpastring will break on (x == 1) for example
+    // if we don't check this cpa_string will break on (x == 1) for example
     if (!ciStr1.isBottom() && !ciStr2.isBottom()) {
 
       Set<Character> set =
@@ -143,7 +147,7 @@ public class StringTransferRelation
           break;
       }
     }
-    return state;
+    return newState;
   }
 
 
@@ -181,21 +185,46 @@ public class StringTransferRelation
   protected CIStringState handleStatementEdge(CStatementEdge cfaEdge, CStatement statement)
       throws UnrecognizedCodeException {
 
-    if (statement instanceof CFunctionCall) {
-      CIStringState newState = state;
+    if (statement instanceof CAssignment) {
+      return handleAssignment((CAssignment) statement, cfaEdge);
+    } else if (statement instanceof CFunctionCall) {
+
       CFunctionCall fCall = (CFunctionCall) statement;
       CFunctionCallExpression fCallExp = fCall.getFunctionCallExpression();
       CExpression fNameExpression = fCallExp.getFunctionNameExpression();
 
       if (fNameExpression instanceof CIdExpression) {
-        String func = ((CIdExpression) fNameExpression).getName();
-        // TODO: add ...
+        String funcName = ((CIdExpression) fNameExpression).getName();
+
+        if (builtins.isABuiltin(funcName)) {
+          return handleBuiltinFunctionCall(cfaEdge, fCallExp, funcName);
+        }
       }
-      return newState;
-    } else if (statement instanceof CAssignment) {
-      return handleAssignment((CAssignment) statement, cfaEdge);
     }
     return state;
+  }
+
+  protected CIStringState
+      handleBuiltinFunctionCall(
+          CStatementEdge cfaEdge,
+          CFunctionCallExpression fCallExp,
+          String calledFunctionName) {
+    switch (calledFunctionName) {
+      case "strcpy":
+        return evaluateSTRCPY("strcpy", cfaEdge, fCallExp);
+      case "strncpy":
+        return evaluateSTRCPY("strncpy", cfaEdge, fCallExp);
+      case "strcat":
+        return evaluateSTRCAT("strcat", cfaEdge, fCallExp);
+      case "strncat":
+        return evaluateSTRCAT("strncat", cfaEdge, fCallExp);
+      case "memcpy":
+        return evaluateSTRCAT("memcpy", cfaEdge, fCallExp);
+      case "memmove":
+        return evaluateSTRCAT("memmove", cfaEdge, fCallExp);
+      default:
+        return state;
+    }
   }
 
   private CIStringState handleAssignment(CAssignment assignExpression, CStatementEdge cfaEdge)
@@ -268,6 +297,63 @@ public class StringTransferRelation
   }
 
   private CIStringState
+      evaluateSTRCPY(String fName, CStatementEdge cfaEdge, CFunctionCallExpression expression) {
+    CIStringState newState = state;
+
+    CExpression s1 = expression.getParameterExpressions().get(0);
+    CExpression s2 = expression.getParameterExpressions().get(1);
+
+    StringCExpressionVisitor visitor = new StringCExpressionVisitor(cfaEdge, newState, builtins);
+    try {
+      CIString ciStr2 = s2.accept(visitor);
+
+      if (!ciStr2.isBottom() || !fName.equals("strcpy")) {
+
+        explicitCIString newCIStr = (explicitCIString) ciStr2;
+        newCIStr.clearCertainly();
+
+        return removeAndAddCIString(newState, s1, newCIStr);
+
+      } else {
+        return removeAndAddCIString(newState, s1, ciStr2);
+      }
+    } catch (UnrecognizedCodeException e) {
+      e.printStackTrace();
+    }
+    return newState;
+  }
+
+  private CIStringState
+      evaluateSTRCAT(String fName, CStatementEdge cfaEdge, CFunctionCallExpression expression) {
+    CIStringState newState = state;
+
+    CExpression s1 = expression.getParameterExpressions().get(0);
+    CExpression s2 = expression.getParameterExpressions().get(1);
+
+    StringCExpressionVisitor visitor = new StringCExpressionVisitor(cfaEdge, newState, builtins);
+    try {
+      CIString ciStr1 = s1.accept(visitor);
+      CIString ciStr2 = s2.accept(visitor);
+
+      if (!ciStr1.isBottom() && !ciStr2.isBottom()) {
+
+        explicitCIString exCIStr1 = (explicitCIString) ciStr1;
+        explicitCIString exCIStr2 = (explicitCIString) ciStr2;
+
+        if (fName.equals("strcat")) {
+          exCIStr1.addToSertainly(exCIStr2.getCertainly().asSet());
+        }
+        exCIStr1.addToMaybe(exCIStr2.getMaybe().asSet());
+
+        return removeAndAddCIString(newState, s1, exCIStr1);
+      }
+    } catch (UnrecognizedCodeException e) {
+      e.printStackTrace();
+    }
+    return newState;
+  }
+
+  private CIStringState
       removeAndAddCIString(CIStringState newState, CExpression expression, CIString ciString) {
 
     if (expression instanceof CArraySubscriptExpression) {
@@ -310,7 +396,7 @@ public class StringTransferRelation
   private CIString
       evaluateCIString(CIStringState ciStringState, CRightHandSide expression, CFAEdge cfaEdge)
           throws UnrecognizedCodeException {
-    return expression.accept(new StringCExpressionVisitor(cfaEdge, ciStringState));
+    return expression.accept(new StringCExpressionVisitor(cfaEdge, ciStringState, builtins));
   }
 
 }
