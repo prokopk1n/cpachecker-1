@@ -161,7 +161,7 @@ public class StringCExpressionVisitor
 
   private CIString evaluateFunctionExpression(
       String fName,
-      CFunctionCallExpression expression) {
+      CFunctionCallExpression expression) throws UnrecognizedCodeException {
     switch (fName) {
       case "strtok":
         return evaluateSTRTOK(expression);
@@ -174,91 +174,80 @@ public class StringCExpressionVisitor
     }
   }
 
-  private CIString evaluateSTRTOK(CFunctionCallExpression expression) {
+  private CIString evaluateSTRTOK(CFunctionCallExpression expression)
+      throws UnrecognizedCodeException {
 
     // char *strtok(char *string, const char *delim)
 
     CExpression s1 = expression.getParameterExpressions().get(0);
     CExpression s2 = expression.getParameterExpressions().get(1);
 
-    try {
 
-      CIString ciStr1 = s1.accept(this);
-      CIString ciStr2 = s2.accept(this);
+    CIString ciStr1 = s1.accept(this);
+    CIString ciStr2 = s2.accept(this);
 
-      if (ciStr1.isBottom()) {
-        // if string = NULL
-        if (!builtins.isNEW()) {
-          return builtins.getPrevCIString();
-        }
+    if (ciStr1.isBottom()) {
+      // if string = NULL
+      if (!builtins.isNEW()) {
+        return builtins.getPrevCIString();
+      }
+      return bottomCIString.INSTANCE;
+
+    } else {
+      // if string != NULL
+      explicitCIString exCIStr1 = (explicitCIString) ciStr1;
+
+      if (exCIStr1.isEmpty()) {
+        // if string is empty we return NULL
         return bottomCIString.INSTANCE;
-
-      } else {
-        // if string != NULL
-        explicitCIString exCIStr1 = (explicitCIString) ciStr1;
-
-        if (exCIStr1.isEmpty()) {
-          // if string is empty we return NULL
-          return bottomCIString.INSTANCE;
-        }
-
-        builtins.setNEWFalse();
-
-        // Exists one symbol from delim in string?
-        Boolean isInters =
-            !SetUtil.generalizedIntersect(ciStr1.getMaybe().asSet(), ciStr2.getMaybe().asSet())
-                .isEmpty();
-
-        if (isInters) {
-          // now we can't say which symbols are certainly in string
-          exCIStr1.clearCertainly();
-        }
-        builtins.setPrevCIString(exCIStr1);
-        return exCIStr1;
       }
 
-    } catch (UnrecognizedCodeException e) {
-      e.printStackTrace();
+      builtins.setNEWFalse();
+
+      // Exists one symbol from delim in string?
+      Boolean isInters =
+          !SetUtil.generalizedIntersect(ciStr1.getMaybe().asSet(), ciStr2.getMaybe().asSet())
+              .isEmpty();
+
+      if (isInters) {
+        // now we can't say which symbols are certainly in string
+        exCIStr1.clearCertainly();
+      }
+      builtins.setPrevCIString(exCIStr1);
+      return exCIStr1;
     }
-    return explicitCIString.EMPTY;
   }
 
-  private CIString evaluateSTRSTR(CFunctionCallExpression expression) {
+  private CIString evaluateSTRSTR(CFunctionCallExpression expression)
+      throws UnrecognizedCodeException {
 
     // char *strstr(const char *str1, const char *str2)
     CExpression s1 = expression.getParameterExpressions().get(0);
     CExpression s2 = expression.getParameterExpressions().get(1);
 
-    try {
+    CIString ciStr1 = s1.accept(this);
+    CIString ciStr2 = s2.accept(this);
 
-      CIString ciStr1 = s1.accept(this);
-      CIString ciStr2 = s2.accept(this);
-
-      if (ciStr1.isBottom() || ciStr2.isBottom()) {
-        // ERROR
-        // TODO: write it
-        return bottomCIString.INSTANCE;
-      }
-
-      explicitCIString exCIStr1 = (explicitCIString) ciStr1;
-      explicitCIString exCIStr2 = (explicitCIString) ciStr2;
-
-      if (exCIStr1.isLessOrEqual(exCIStr2)) {
-        // if str2 is found in str1
-        if (exCIStr2.isEmpty()) {
-          return exCIStr1;
-        }
-        // we know only that str2 is in certainly
-        return exCIStr1.join(exCIStr2);
-
-      } else {
-        // if the str2 is not found in str1 return NULL
-        return bottomCIString.INSTANCE;
-      }
-
-    } catch (UnrecognizedCodeException e) {
-      e.printStackTrace();
+    if (ciStr1.isBottom() || ciStr2.isBottom()) {
+      // ERROR
+      // TODO: write it
+      return bottomCIString.INSTANCE;
     }
-    return explicitCIString.EMPTY;
+
+    explicitCIString exCIStr1 = (explicitCIString) ciStr1;
+    explicitCIString exCIStr2 = (explicitCIString) ciStr2;
+
+    if (exCIStr1.isLessOrEqual(exCIStr2)) {
+      // if str2 is found in str1
+      if (exCIStr2.isEmpty()) {
+        return exCIStr1;
+      }
+      // we know only that str2 is in certainly
+      return exCIStr1.join(exCIStr2);
+
+    } else {
+      // if the str2 is not found in str1 return NULL
+      return bottomCIString.INSTANCE;
+      }
   }
 }

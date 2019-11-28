@@ -75,24 +75,21 @@ public class StringTransferRelation
   }
 
   @Override
-  protected CIStringState handleReturnStatementEdge(CReturnStatementEdge returnEdge) {
+  protected CIStringState handleReturnStatementEdge(CReturnStatementEdge returnEdge)
+      throws UnrecognizedCodeException {
 
     CIStringState newState = state;
     if (returnEdge.asAssignment().isPresent()) {
       CAssignment ass = returnEdge.asAssignment().get();
       StringCExpressionVisitor visitor =
           new StringCExpressionVisitor(returnEdge, newState, builtins);
-      try {
+
         newState =
             removeAndAddCIString(
                 newState,
                 ass.getLeftHandSide(),
-                ((CExpression) ass.getRightHandSide()).accept(visitor));
+                ass.getRightHandSide().accept(visitor));
         return newState;
-
-      } catch (UnrecognizedCodeException e) {
-        e.printStackTrace();
-      }
     }
 
     return state;
@@ -208,7 +205,7 @@ public class StringTransferRelation
       handleBuiltinFunctionCall(
           CStatementEdge cfaEdge,
           CFunctionCallExpression fCallExp,
-          String calledFunctionName) {
+          String calledFunctionName) throws UnrecognizedCodeException {
     switch (calledFunctionName) {
       case "strcpy":
         return evaluateSTRCPY("strcpy", cfaEdge, fCallExp);
@@ -297,58 +294,51 @@ public class StringTransferRelation
   }
 
   private CIStringState
-      evaluateSTRCPY(String fName, CStatementEdge cfaEdge, CFunctionCallExpression expression) {
+      evaluateSTRCPY(String fName, CStatementEdge cfaEdge, CFunctionCallExpression expression)
+      throws UnrecognizedCodeException {
     CIStringState newState = state;
 
     CExpression s1 = expression.getParameterExpressions().get(0);
     CExpression s2 = expression.getParameterExpressions().get(1);
 
     StringCExpressionVisitor visitor = new StringCExpressionVisitor(cfaEdge, newState, builtins);
-    try {
-      CIString ciStr2 = s2.accept(visitor);
+    CIString ciStr2 = s2.accept(visitor);
 
-      if (!ciStr2.isBottom() || !fName.equals("strcpy")) {
+    if (!ciStr2.isBottom() || !fName.equals("strcpy")) {
 
-        explicitCIString newCIStr = (explicitCIString) ciStr2;
-        newCIStr.clearCertainly();
+      explicitCIString newCIStr = (explicitCIString) ciStr2;
+      newCIStr.clearCertainly();
 
-        return removeAndAddCIString(newState, s1, newCIStr);
+      return removeAndAddCIString(newState, s1, newCIStr);
 
-      } else {
-        return removeAndAddCIString(newState, s1, ciStr2);
-      }
-    } catch (UnrecognizedCodeException e) {
-      e.printStackTrace();
+    } else {
+      return removeAndAddCIString(newState, s1, ciStr2);
     }
-    return newState;
   }
 
   private CIStringState
-      evaluateSTRCAT(String fName, CStatementEdge cfaEdge, CFunctionCallExpression expression) {
+      evaluateSTRCAT(String fName, CStatementEdge cfaEdge, CFunctionCallExpression expression)
+      throws UnrecognizedCodeException {
     CIStringState newState = state;
 
     CExpression s1 = expression.getParameterExpressions().get(0);
     CExpression s2 = expression.getParameterExpressions().get(1);
 
     StringCExpressionVisitor visitor = new StringCExpressionVisitor(cfaEdge, newState, builtins);
-    try {
-      CIString ciStr1 = s1.accept(visitor);
-      CIString ciStr2 = s2.accept(visitor);
+    CIString ciStr1 = s1.accept(visitor);
+    CIString ciStr2 = s2.accept(visitor);
 
-      if (!ciStr1.isBottom() && !ciStr2.isBottom()) {
+    if (!ciStr1.isBottom() && !ciStr2.isBottom()) {
 
-        explicitCIString exCIStr1 = (explicitCIString) ciStr1;
-        explicitCIString exCIStr2 = (explicitCIString) ciStr2;
+      explicitCIString exCIStr1 = (explicitCIString) ciStr1;
+      explicitCIString exCIStr2 = (explicitCIString) ciStr2;
 
-        if (fName.equals("strcat")) {
-          exCIStr1.addToSertainly(exCIStr2.getCertainly().asSet());
-        }
-        exCIStr1.addToMaybe(exCIStr2.getMaybe().asSet());
-
-        return removeAndAddCIString(newState, s1, exCIStr1);
+      if (fName.equals("strcat")) {
+        exCIStr1.addToSertainly(exCIStr2.getCertainly().asSet());
       }
-    } catch (UnrecognizedCodeException e) {
-      e.printStackTrace();
+      exCIStr1.addToMaybe(exCIStr2.getMaybe().asSet());
+
+      return removeAndAddCIString(newState, s1, exCIStr1);
     }
     return newState;
   }
