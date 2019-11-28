@@ -25,6 +25,7 @@ package org.sosy_lab.cpachecker.cpa.string;
 
 import org.sosy_lab.common.configuration.Configuration;
 import org.sosy_lab.common.configuration.InvalidConfigurationException;
+import org.sosy_lab.common.configuration.Option;
 import org.sosy_lab.common.configuration.Options;
 import org.sosy_lab.cpachecker.cfa.model.CFANode;
 import org.sosy_lab.cpachecker.core.defaults.AbstractCPA;
@@ -41,18 +42,17 @@ import org.sosy_lab.cpachecker.core.interfaces.TransferRelation;
 
 public class StringCPA extends AbstractCPA {
 
-  /*
-   * @Option( secure = true, name = "merge", toUppercase = true, values = {"SEP", "JOIN"},
-   * description = "which merge operator to use for SignCPA") private String mergeType = "SEP";
-   *
-   * @Option( secure = true, name = "stop", toUppercase = true, values = {"SEP", "JOIN"},
-   * description = "which stop operator to use for SignCPA") private String stopType = "JOIN";
-   */
+  @Option(secure=true, name="merge", toUppercase=true, values={"SEP", "JOIN"},
+      description="which merge operator to use for StringCPA")
+  private String mergeType = "SEP";
 
-  /*
-   * protected StringCPA(AbstractDomain pDomain, TransferRelation pTransfer) { super(pDomain,
-   * pTransfer); }
-   */
+  @Option(
+      secure = true,
+      name = "stop",
+      toUppercase = true,
+      values = {"SEP", "JOIN", "NEVER", "EQUALS"},
+      description = "which stop operator to use for StringCPA")
+  private String stopType = "JOIN";
 
   protected StringCPA(Configuration config) throws InvalidConfigurationException {
     super("SEP", "JOIN", DelegateAbstractDomain.<CIStringState>getInstance(), null);
@@ -76,11 +76,11 @@ public class StringCPA extends AbstractCPA {
 
   @Override
   public MergeOperator getMergeOperator() {
-    return buildMergeOperator("SEP");
+    return buildMergeOperator(mergeType);
   }
 
   @Override
   public StopOperator getStopOperator() {
-    return buildStopOperator("JOIN");
+    return buildStopOperator(stopType);
   }
 }
