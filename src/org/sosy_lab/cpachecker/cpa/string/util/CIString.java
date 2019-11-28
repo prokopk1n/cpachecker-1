@@ -23,12 +23,10 @@
  */
 package org.sosy_lab.cpachecker.cpa.string.util;
 
-import java.io.Serializable;
 import org.sosy_lab.cpachecker.core.defaults.LatticeAbstractState;
 import org.sosy_lab.cpachecker.cpa.smg.util.PersistentSet;
 
-public interface CIString
-    extends Serializable, LatticeAbstractState<CIString> {
+public interface CIString extends LatticeAbstractState<CIString> {
 
   boolean isBottom();
 

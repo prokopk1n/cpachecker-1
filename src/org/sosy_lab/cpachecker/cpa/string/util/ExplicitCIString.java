@@ -29,7 +29,6 @@ import org.sosy_lab.cpachecker.cpa.smg.util.PersistentSet;
 
 public class ExplicitCIString implements CIString {
 
-  private static final long serialVersionUID = 1L;
   private PersistentSet<Character> certainly;
   private PersistentSet<Character> maybe;
 
