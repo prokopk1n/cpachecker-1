@@ -46,8 +46,8 @@ public class explicitCIString implements CIString {
     char[] charArray = str.toCharArray();
 
     for (int i = 0; i < charArray.length; i++) {
-      certainly = certainly.addAndCopy(new Character(charArray[i]));
-      maybe = maybe.addAndCopy(new Character(charArray[i]));
+      certainly = certainly.addAndCopy(Character.valueOf(charArray[i]));
+      maybe = maybe.addAndCopy(Character.valueOf(charArray[i]));
     }
   }
 
@@ -74,7 +74,7 @@ public class explicitCIString implements CIString {
   @Override
   public boolean equals(Object pObj) {
 
-    if (!(pObj instanceof CIString)) {
+    if (!(pObj instanceof explicitCIString)) {
       return false;
     }
     explicitCIString other = (explicitCIString) pObj;

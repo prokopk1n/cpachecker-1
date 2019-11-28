@@ -70,7 +70,7 @@ public class StringCExpressionVisitor
 
   @Override
   public CIString visit(CArraySubscriptExpression e) throws UnrecognizedCodeException {
-    return (e.getArrayExpression()).accept(this);
+    return e.getArrayExpression().accept(this);
   }
 
   @Override
@@ -135,7 +135,7 @@ public class StringCExpressionVisitor
 
   @Override
   public CIString visit(CPointerExpression e) throws UnrecognizedCodeException {
-    return (e.getOperand()).accept(this);
+    return e.getOperand().accept(this);
   }
 
   @Override
