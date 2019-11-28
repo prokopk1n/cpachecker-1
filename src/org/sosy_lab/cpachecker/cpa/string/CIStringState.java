@@ -139,10 +139,10 @@ public class CIStringState
 
   @Override
   public String toString() {
-    String str = new String();
+    StringJoiner str = new StringJoiner(", ");
     for (String stringName : ciDomains.keySet()) {
-      str = str + "(" + stringName + " = " + getCIString(stringName).toString() + "), ";
+      str.add("(" + stringName + " = " + getCIString(stringName).toString() + ")");
     }
-    return str;
+    return str.toString();
   }
 }
