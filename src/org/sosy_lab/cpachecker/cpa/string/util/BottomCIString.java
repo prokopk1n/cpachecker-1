@@ -25,7 +25,7 @@ package org.sosy_lab.cpachecker.cpa.string.util;
 
 import org.sosy_lab.cpachecker.cpa.smg.util.PersistentSet;
 
-public enum bottomCIString implements CIString {
+public enum BottomCIString implements CIString {
 
   INSTANCE;
 

@@ -45,14 +45,15 @@ import org.sosy_lab.cpachecker.cfa.ast.c.DefaultCExpressionVisitor;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cpa.ifcsecurity.util.SetUtil;
 import org.sosy_lab.cpachecker.cpa.string.util.CIString;
-import org.sosy_lab.cpachecker.cpa.string.util.bottomCIString;
-import org.sosy_lab.cpachecker.cpa.string.util.explicitCIString;
+import org.sosy_lab.cpachecker.cpa.string.util.BottomCIString;
+import org.sosy_lab.cpachecker.cpa.string.util.ExplicitCIString;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
 
 public class StringCExpressionVisitor
     extends DefaultCExpressionVisitor<CIString, UnrecognizedCodeException>
     implements CRightHandSideVisitor<CIString, UnrecognizedCodeException> {
 
+  @SuppressWarnings("unused")
   private final CFAEdge cfaEdge;
   private final CIStringState state;
   private final BuiltinFunctions builtins;
@@ -65,7 +66,7 @@ public class StringCExpressionVisitor
 
   @Override
   protected CIString visitDefault(CExpression pExp) {
-    return bottomCIString.INSTANCE;
+    return BottomCIString.INSTANCE;
   }
 
   @Override
@@ -75,12 +76,12 @@ public class StringCExpressionVisitor
 
   @Override
   public CIString visit(CCharLiteralExpression e) throws UnrecognizedCodeException {
-    return new explicitCIString(Character.toString(e.getCharacter()));
+    return new ExplicitCIString(Character.toString(e.getCharacter()));
   }
 
   @Override
   public CIString visit(CStringLiteralExpression e) throws UnrecognizedCodeException {
-    return new explicitCIString(e.getContentString());
+    return new ExplicitCIString(e.getContentString());
   }
 
   @Override
@@ -156,7 +157,7 @@ public class StringCExpressionVisitor
         return evaluateFunctionExpression(funcName, fCallExpression);
       }
     }
-    return bottomCIString.INSTANCE;
+    return BottomCIString.INSTANCE;
   }
 
   private CIString evaluateFunctionExpression(
@@ -170,7 +171,7 @@ public class StringCExpressionVisitor
       case "strpbrk":
         return evaluateSTRSTR(expression);
       default:
-        return explicitCIString.EMPTY;
+        return ExplicitCIString.EMPTY;
     }
   }
 
@@ -191,15 +192,15 @@ public class StringCExpressionVisitor
       if (!builtins.isNEW()) {
         return builtins.getPrevCIString();
       }
-      return bottomCIString.INSTANCE;
+      return BottomCIString.INSTANCE;
 
     } else {
       // if string != NULL
-      explicitCIString exCIStr1 = (explicitCIString) ciStr1;
+      ExplicitCIString exCIStr1 = (ExplicitCIString) ciStr1;
 
       if (exCIStr1.isEmpty()) {
         // if string is empty we return NULL
-        return bottomCIString.INSTANCE;
+        return BottomCIString.INSTANCE;
       }
 
       builtins.setNEWFalse();
@@ -231,11 +232,11 @@ public class StringCExpressionVisitor
     if (ciStr1.isBottom() || ciStr2.isBottom()) {
       // ERROR
       // TODO: write it
-      return bottomCIString.INSTANCE;
+      return BottomCIString.INSTANCE;
     }
 
-    explicitCIString exCIStr1 = (explicitCIString) ciStr1;
-    explicitCIString exCIStr2 = (explicitCIString) ciStr2;
+    ExplicitCIString exCIStr1 = (ExplicitCIString) ciStr1;
+    ExplicitCIString exCIStr2 = (ExplicitCIString) ciStr2;
 
     if (exCIStr1.isLessOrEqual(exCIStr2)) {
       // if str2 is found in str1
@@ -247,7 +248,7 @@ public class StringCExpressionVisitor
 
     } else {
       // if the str2 is not found in str1 return NULL
-      return bottomCIString.INSTANCE;
+      return BottomCIString.INSTANCE;
       }
   }
 }

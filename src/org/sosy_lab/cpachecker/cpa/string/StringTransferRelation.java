@@ -57,7 +57,7 @@ import org.sosy_lab.cpachecker.core.defaults.ForwardingTransferRelation;
 import org.sosy_lab.cpachecker.core.defaults.SingletonPrecision;
 import org.sosy_lab.cpachecker.cpa.ifcsecurity.util.SetUtil;
 import org.sosy_lab.cpachecker.cpa.string.util.CIString;
-import org.sosy_lab.cpachecker.cpa.string.util.explicitCIString;
+import org.sosy_lab.cpachecker.cpa.string.util.ExplicitCIString;
 import org.sosy_lab.cpachecker.exceptions.CPATransferException;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
 
@@ -306,7 +306,7 @@ public class StringTransferRelation
 
     if (!ciStr2.isBottom() || !fName.equals("strcpy")) {
 
-      explicitCIString newCIStr = (explicitCIString) ciStr2;
+      ExplicitCIString newCIStr = (ExplicitCIString) ciStr2;
       newCIStr.clearCertainly();
 
       return removeAndAddCIString(newState, s1, newCIStr);
@@ -330,8 +330,8 @@ public class StringTransferRelation
 
     if (!ciStr1.isBottom() && !ciStr2.isBottom()) {
 
-      explicitCIString exCIStr1 = (explicitCIString) ciStr1;
-      explicitCIString exCIStr2 = (explicitCIString) ciStr2;
+      ExplicitCIString exCIStr1 = (ExplicitCIString) ciStr1;
+      ExplicitCIString exCIStr2 = (ExplicitCIString) ciStr2;
 
       if (fName.equals("strcat")) {
         exCIStr1.addToSertainly(exCIStr2.getCertainly().asSet());

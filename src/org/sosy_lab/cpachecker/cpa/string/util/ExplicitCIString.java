@@ -27,18 +27,18 @@ import java.util.Set;
 import org.sosy_lab.cpachecker.cpa.ifcsecurity.util.SetUtil;
 import org.sosy_lab.cpachecker.cpa.smg.util.PersistentSet;
 
-public class explicitCIString implements CIString {
+public class ExplicitCIString implements CIString {
 
   private static final long serialVersionUID = 1L;
   private PersistentSet<Character> certainly;
   private PersistentSet<Character> maybe;
 
-  public explicitCIString() {
+  public ExplicitCIString() {
     certainly = PersistentSet.of();
     maybe = PersistentSet.of();
   }
 
-  public explicitCIString(String str) {
+  public ExplicitCIString(String str) {
 
     certainly = PersistentSet.of();
     maybe = PersistentSet.of();
@@ -51,19 +51,19 @@ public class explicitCIString implements CIString {
     }
   }
 
-  private explicitCIString(PersistentSet<Character> pCertainly, PersistentSet<Character> pMaybe) {
+  private ExplicitCIString(PersistentSet<Character> pCertainly, PersistentSet<Character> pMaybe) {
     certainly = pCertainly;
     maybe = pMaybe;
   }
 
-  public explicitCIString copyOf() {
-    return new explicitCIString(certainly, maybe);
+  public ExplicitCIString copyOf() {
+    return new ExplicitCIString(certainly, maybe);
   }
 
-  public final static explicitCIString EMPTY = new explicitCIString();
+  public final static ExplicitCIString EMPTY = new ExplicitCIString();
 
   public boolean isEmpty() {
-    return equals(explicitCIString.EMPTY);
+    return equals(ExplicitCIString.EMPTY);
   }
 
   @Override
@@ -74,10 +74,10 @@ public class explicitCIString implements CIString {
   @Override
   public boolean equals(Object pObj) {
 
-    if (!(pObj instanceof explicitCIString)) {
+    if (!(pObj instanceof ExplicitCIString)) {
       return false;
     }
-    explicitCIString other = (explicitCIString) pObj;
+    ExplicitCIString other = (ExplicitCIString) pObj;
 
     if (other.isBottom()) {
       return false;
@@ -125,10 +125,10 @@ public class explicitCIString implements CIString {
     // }
 
     if(pOther.isBottom()) {
-      return bottomCIString.INSTANCE;
+      return BottomCIString.INSTANCE;
     }
 
-    explicitCIString str = new explicitCIString();
+    ExplicitCIString str = new ExplicitCIString();
 
     str.setCertainly(
         SetUtil.generalizedIntersect(this.getCertainly().asSet(), pOther.getCertainly().asSet()));

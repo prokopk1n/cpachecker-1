@@ -22,7 +22,7 @@ package org.sosy_lab.cpachecker.cpa.string;
 import com.google.common.collect.Sets;
 import java.util.Set;
 import org.sosy_lab.cpachecker.cpa.string.util.CIString;
-import org.sosy_lab.cpachecker.cpa.string.util.bottomCIString;
+import org.sosy_lab.cpachecker.cpa.string.util.BottomCIString;
 
 public class BuiltinFunctions {
 
@@ -47,7 +47,7 @@ public class BuiltinFunctions {
 
   BuiltinFunctions() {
     STRTOK_NEW = true;
-    prevCIString = bottomCIString.INSTANCE;
+    prevCIString = BottomCIString.INSTANCE;
   }
 
   public void setNEWTrue() {

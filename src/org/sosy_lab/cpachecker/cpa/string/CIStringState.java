@@ -29,7 +29,7 @@ import org.sosy_lab.common.collect.PathCopyingPersistentTreeMap;
 import org.sosy_lab.common.collect.PersistentMap;
 import org.sosy_lab.cpachecker.core.defaults.LatticeAbstractState;
 import org.sosy_lab.cpachecker.cpa.string.util.CIString;
-import org.sosy_lab.cpachecker.cpa.string.util.explicitCIString;
+import org.sosy_lab.cpachecker.cpa.string.util.ExplicitCIString;
 import org.sosy_lab.cpachecker.exceptions.CPAException;
 
 public class CIStringState
@@ -47,7 +47,7 @@ public class CIStringState
   }
 
   public CIString getCIString(String stringName) {
-    return ciDomains.getOrDefault(stringName, explicitCIString.EMPTY);
+    return ciDomains.getOrDefault(stringName, ExplicitCIString.EMPTY);
   }
 
   public boolean contains(String stringName) {
