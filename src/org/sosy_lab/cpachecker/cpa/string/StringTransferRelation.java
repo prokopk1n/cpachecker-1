@@ -113,7 +113,7 @@ public class StringTransferRelation
       operator = operator.getOppositLogicalOperator();
     }
 
-    if (operator.getOperator() != "==" && operator.getOperator() != "!=") {
+    if (operator != BinaryOperator.EQUALS && operator != BinaryOperator.NOT_EQUALS) {
       return state;
     }
 
