@@ -24,6 +24,7 @@
 package org.sosy_lab.cpachecker.cpa.string;
 
 import java.io.Serializable;
+import java.util.StringJoiner;
 import org.sosy_lab.common.collect.PathCopyingPersistentTreeMap;
 import org.sosy_lab.common.collect.PersistentMap;
 import org.sosy_lab.cpachecker.core.defaults.LatticeAbstractState;
@@ -41,8 +42,8 @@ public class CIStringState
     ciDomains = PathCopyingPersistentTreeMap.of();
   }
 
-  public CIStringState(PersistentMap<String, CIString> ciDomains) {
-    this.ciDomains = ciDomains;
+  public CIStringState(PersistentMap<String, CIString> pCiDomains) {
+    this.ciDomains = pCiDomains;
   }
 
   public CIString getCIString(String stringName) {
@@ -62,7 +63,7 @@ public class CIStringState
       return new CIStringState(ciDomains.putAndCopy(stringName, ciString));
     }
     if (!ciDomains.get(stringName).equals(ciString)) {
-      CIString str = (ciDomains.get(stringName)).join(ciString);
+      CIString str = ciDomains.get(stringName).join(ciString);
       return new CIStringState(ciDomains.putAndCopy(stringName, str));
     }
     return this;
@@ -128,7 +129,7 @@ public class CIStringState
       if (!pOther.ciDomains.containsKey(stringName)) {
         return false;
       } else {
-        if (!(this.getCIString(stringName)).isLessOrEqual(pOther.getCIString(stringName))) {
+        if (!getCIString(stringName).isLessOrEqual(pOther.getCIString(stringName))) {
           return false;
         }
       }
