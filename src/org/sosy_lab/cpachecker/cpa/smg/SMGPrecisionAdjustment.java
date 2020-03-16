@@ -80,6 +80,7 @@ public class SMGPrecisionAdjustment implements PrecisionAdjustment {
     boolean allowsFieldAbstraction = pPrecision.getAbstractionOptions().allowsFieldAbstraction();
     boolean allowsHeapAbstraction = pPrecision.allowsHeapAbstractionOnNode(node, blockOperator);
     boolean allowsStackAbstraction = pPrecision.getAbstractionOptions().allowsStackAbstraction();
+    boolean countPossibleAbstractions = pPrecision.getAbstractionOptions().countPossibleAbstractions();
 
     if (!allowsFieldAbstraction && !allowsHeapAbstraction && !allowsStackAbstraction) {
       return Optional.of(PrecisionAdjustmentResult.create(pState, pPrecision, Action.CONTINUE));
@@ -125,10 +126,10 @@ public class SMGPrecisionAdjustment implements PrecisionAdjustment {
 
     if (allowsHeapAbstraction) {
 
-      boolean heapAbstractionChange =
+      int heapAbstractionChange =
           newState.executeHeapAbstraction(pPrecision.getAbstractionBlocks(node));
 
-      if (heapAbstractionChange) {
+      if (heapAbstractionChange > 0) {
         String name = String.format("%03d-before-heap-abstraction", result.getId());
         String name2 = String.format("%03d-after-heap-abstraction", result.getId());
         String description = "before-heap-abstraction-of-smg-" + result.getId();
@@ -140,6 +141,13 @@ public class SMGPrecisionAdjustment implements PrecisionAdjustment {
         logger.log(Level.ALL, "Heap abstraction on node ", node.getNodeNumber(),
             " with state id: ", pState.getId());
         result = newState;
+      }
+    }
+
+    if (countPossibleAbstractions) {
+      int newHeapAbstractionLenght = newState.executeHeapAbstraction(pPrecision.getAbstractionBlocks(node));
+      if (newHeapAbstractionLenght > 0) {
+        statistics.possibleAbstraction.setNextValue(newHeapAbstractionLenght);
       }
     }
 

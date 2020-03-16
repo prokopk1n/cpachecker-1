@@ -2059,7 +2059,7 @@ public class SMGState implements UnmodifiableSMGState, AbstractQueryableState, G
     return "__" + functionName;
   }
 
-  public boolean executeHeapAbstraction(Set<SMGAbstractionBlock> blocks)
+  public int executeHeapAbstraction(Set<SMGAbstractionBlock> blocks)
       throws SMGInconsistentException {
     final SMGAbstractionManager manager;
     boolean usesHeapInterpolation = true; // TODO do we need this flag?
@@ -2068,9 +2068,9 @@ public class SMGState implements UnmodifiableSMGState, AbstractQueryableState, G
     } else {
       manager = new SMGAbstractionManager(logger, heap, this, blocks, 2, 2, 3);
     }
-    boolean change = manager.execute();
+    int maxLenght = manager.execute();
     performConsistencyCheck(SMGRuntimeCheck.HALF);
-    return change;
+    return maxLenght;
   }
 
   public Optional<SMGEdgeHasValue> forget(SMGMemoryPath location) {
