@@ -102,7 +102,7 @@ public class ExtendedWitnessFactory extends WitnessFactory {
   }
 
   @Override
-  protected Iterable<TransitionCondition> extractTransitionForStates(
+  protected Collection<TransitionCondition> extractTransitionForStates(
       String pFrom,
       String pTo,
       CFAEdge pEdge,
