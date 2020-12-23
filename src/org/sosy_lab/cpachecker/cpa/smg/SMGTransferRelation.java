@@ -894,7 +894,7 @@ public class SMGTransferRelation
       SMGExplicitValue expValue = expValueAndState.getObject();
       SMGState newState = expValueAndState.getSmgState();
 
-      if (!expValue.isUnknown()) {
+      if (!expValue.isUnknown() && !expValue.equals(value)) {
         SMGKnownSymbolicValue mergedSymValue =
             newState.putExplicit((SMGKnownSymbolicValue) value, (SMGKnownExpValue) expValue);
         result.add(Pair.of(newState, mergedSymValue));
