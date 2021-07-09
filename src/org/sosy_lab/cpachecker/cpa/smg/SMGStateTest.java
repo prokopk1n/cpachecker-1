@@ -30,6 +30,7 @@ import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.cpa.smg.evaluator.SMGAbstractObjectAndState.SMGAddressValueAndState;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.CLangSMG;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.CLangSMGTest;
+import org.sosy_lab.cpachecker.cpa.smg.graphs.SMGChangeTracker;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.SMGHasValueEdges;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.UnmodifiableSMG;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.edge.SMGEdgeHasValue;
@@ -142,7 +143,8 @@ public class SMGStateTest {
     smg1.setValidity(l5, true);
 
     SMGState smg1State = new SMGState(
-        logger, new SMGOptions(Configuration.defaultConfiguration()), smg1, 0, HashBiMap.create());
+        logger, new SMGOptions(Configuration.defaultConfiguration()), smg1, 0, HashBiMap.create(), SMGChangeTracker
+        .createRoot(0));
 
     SMGObject head = smg1State.addGlobalVariable(64, "head");
     smg1State.addPointsToEdge(head, 0, value5);
@@ -253,7 +255,7 @@ public class SMGStateTest {
    heap.setValidity(l5, true);
 
     SMGState smg1State = new SMGState(logger, new SMGOptions(
-        Configuration.defaultConfiguration()), heap, 0, HashBiMap.create());
+        Configuration.defaultConfiguration()), heap, 0, HashBiMap.create(), SMGChangeTracker.createRoot(0));
 
     smg1State.addStackFrame(CLangSMGTest.DUMMY_FUNCTION);
     SMGObject head = smg1State.addGlobalVariable(64, "head");
@@ -315,7 +317,7 @@ public class SMGStateTest {
     heap.addHasValueEdge(nextField);
 
     SMGOptions options = new SMGOptions(Configuration.defaultConfiguration());
-    SMGState smg1State = new SMGState(logger, options, heap, 0, HashBiMap.create());
+    SMGState smg1State = new SMGState(logger, options, heap, 0, HashBiMap.create(), SMGChangeTracker.createRoot(0));
 
     smg1State.addStackFrame(CLangSMGTest.DUMMY_FUNCTION);
     SMGObject head = smg1State.addGlobalVariable(model32.getSizeofPtrInBits(), "head");
@@ -390,7 +392,7 @@ public class SMGStateTest {
     heap.addHasValueEdge(initialDataField);
 
     SMGOptions options = new SMGOptions(Configuration.defaultConfiguration());
-    SMGState smg1State = new SMGState(logger, options, heap, 0, HashBiMap.create());
+    SMGState smg1State = new SMGState(logger, options, heap, 0, HashBiMap.create(), SMGChangeTracker.createRoot(0));
 
     smg1State.addStackFrame(CLangSMGTest.DUMMY_FUNCTION);
     SMGObject head = smg1State.addGlobalVariable(model32.getSizeofPtrInBits(), "head");

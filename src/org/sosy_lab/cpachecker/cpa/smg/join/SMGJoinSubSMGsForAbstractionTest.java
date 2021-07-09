@@ -23,6 +23,7 @@ import org.sosy_lab.cpachecker.cpa.smg.SMGOptions;
 import org.sosy_lab.cpachecker.cpa.smg.SMGState;
 import org.sosy_lab.cpachecker.cpa.smg.SMGUtils;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.CLangSMG;
+import org.sosy_lab.cpachecker.cpa.smg.graphs.SMGChangeTracker;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.UnmodifiableCLangSMG;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.edge.SMGEdgeHasValue;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.edge.SMGEdgeHasValueFilter;
@@ -48,7 +49,8 @@ public class SMGJoinSubSMGsForAbstractionTest {
             new SMGOptions(Configuration.defaultConfiguration()),
             smg,
             0,
-            HashBiMap.create());
+            HashBiMap.create(),
+            SMGChangeTracker.createRoot(0));
 
     int NODE_SIZE = 64;
     int SEGMENT_LENGTH = 4;
