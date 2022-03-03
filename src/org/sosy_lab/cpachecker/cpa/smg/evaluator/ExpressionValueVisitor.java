@@ -419,7 +419,7 @@ class ExpressionValueVisitor
         newState.getErrorPredicateRelation().addRelation(rVal, rightSideSMGType,
             SMGZeroValue.INSTANCE, rightSideSMGType, BinaryOperator.LESS_THAN);
         newState.getErrorPredicateRelation().addExplicitRelation(rVal, rightSideSMGType,
-            new SMGKnownExpValue(BigInteger.valueOf(leftSideSMGType.getCastedSizeLast())),
+            SMGKnownExpValue.valueOf(BigInteger.valueOf(leftSideSMGType.getCastedSizeLast())),
             BinaryOperator.GREATER_EQUAL);
 
         val =  isZeroBoth ? SMGZeroValue.INSTANCE : SMGUnknownValue.INSTANCE;
@@ -461,7 +461,7 @@ class ExpressionValueVisitor
         return singletonList(res);
 
       default:
-        throw new AssertionError();
+        throw new AssertionError("unexpected bit operator" + binaryOperator);
     }
   }
 

@@ -14,7 +14,7 @@ import java.math.BigInteger;
 
 public class SMGKnownExpValue extends SMGKnownValue implements SMGExplicitValue {
 
-  public SMGKnownExpValue(BigInteger pValue) {
+  protected SMGKnownExpValue(BigInteger pValue) {
     super(pValue);
   }
 
