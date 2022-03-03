@@ -10,13 +10,11 @@ package org.sosy_lab.cpachecker.cpa.smg.graphs;
 
 import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.types.c.CSimpleType;
 import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.cpa.smg.SMGState;
-import org.sosy_lab.cpachecker.cpa.smg.evaluator.SMGAbstractObjectAndState.SMGValueAndState;
 import org.sosy_lab.cpachecker.cpa.smg.evaluator.SMGExpressionEvaluator;
 import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
 
