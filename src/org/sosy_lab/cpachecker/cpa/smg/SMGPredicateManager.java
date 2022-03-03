@@ -1,4 +1,4 @@
-// This file is part of CPAchecker,
+	// This file is part of CPAchecker,
 // a tool for configurable software verification:
 // https://cpachecker.sosy-lab.org
 //
@@ -10,8 +10,9 @@ package org.sosy_lab.cpachecker.cpa.smg;
 
 import com.google.common.collect.ImmutableSet;
 import java.math.BigInteger;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.logging.Level;
@@ -163,25 +164,31 @@ public class SMGPredicateManager {
     BitvectorFormula result;
     long fromSize = pFromSMGType.getOriginSize();
     boolean isFromSigned = pFromSMGType.isOriginSigned();
-    List<Long> toSize = pToSMGType.getCastedSize();
-    toSize.add(0, pToSMGType.getOriginSize());
-    List<Boolean> isToSigned = pToSMGType.getCastedSigned();
-    isToSigned.add(0, pToSMGType.isOriginSigned());
-    result = pVariableFormula;
-    for (int i=0;i<toSize.size();i++) {
-      if (toSize.get(i) > fromSize) {
-        result =
-            efmgr.extend(result, BigInteger.valueOf(toSize.get(i) - fromSize).intValueExact(), isToSigned.get(i));
-      } else if (toSize.get(i) < fromSize) {
-        result =
-            efmgr.extract(result, BigInteger.valueOf(toSize.get(i) - 1).intValueExact(), 0, isToSigned.get(i));
-      } else if (isToSigned.get(i) != isFromSigned) {
-        result = efmgr.extend(result, 0, isToSigned.get(i));
-      }
-      fromSize = toSize.get(i);
-      isFromSigned = isToSigned.get(i);
 
+    Deque<Long> toSize = new ArrayDeque<>(pToSMGType.getCastedSize());
+    toSize.addFirst(pToSMGType.getOriginSize());
+
+    Deque<Boolean> isToSigned = new ArrayDeque<>(pToSMGType.getCastedSigned());
+    isToSigned.addFirst(pToSMGType.isOriginSigned());
+
+    result = pVariableFormula;
+    Boolean isSigned;
+
+    for (Long toSizeElem : toSize) {
+      isSigned = isToSigned.poll();
+      if (toSizeElem > fromSize) {
+        result =
+            efmgr.extend(result, BigInteger.valueOf(toSizeElem - fromSize).intValueExact(), isSigned);
+      } else if (toSizeElem < fromSize) {
+        result =
+            efmgr.extract(result, BigInteger.valueOf(toSizeElem - 1).intValueExact(), 0, isSigned);
+      } else if (isSigned != isFromSigned) {
+        result = efmgr.extend(result, 0, isSigned);
+      }
+      fromSize = toSizeElem;
+      isFromSigned = isSigned;
     }
+
     return result;
   }
 
@@ -192,36 +199,34 @@ public class SMGPredicateManager {
     BitvectorFormula formulaTwo;
 
     SMGType firstValSMGType = pRelation.getFirstValSMGType();
-    List<Long> firstCastedSize = firstValSMGType.getCastedSize();
+    Long firstCastedSize = firstValSMGType.getCastedSizeLast();
 
     SMGType secondValSMGType = pRelation.getSecondValSMGType();
-    List<Long> secondCastedSize = secondValSMGType.getCastedSize();
+    Long secondCastedSize = secondValSMGType.getCastedSizeLast();
 
     // Special case for NULL value
     if (pRelation.getFirstValue().isZero()) {
       firstCastedSize = secondCastedSize;
-      formulaOne = efmgr.makeBitvector(BigInteger.valueOf(firstCastedSize.get(firstCastedSize.size()-1)).intValueExact(), 0);
+      formulaOne = efmgr.makeBitvector(BigInteger.valueOf(firstCastedSize).intValueExact(), 0);
     } else {
       formulaOne = getCastedValue(pRelation.getFirstValue(), firstValSMGType);
     }
 
     if (pRelation.getSecondValue().isZero()) {
       secondCastedSize = firstCastedSize;
-      formulaTwo = efmgr.makeBitvector(BigInteger.valueOf(secondCastedSize.get(secondCastedSize.size()-1)).intValueExact(), 0);
+      formulaTwo = efmgr.makeBitvector(BigInteger.valueOf(secondCastedSize).intValueExact(), 0);
     } else {
       formulaTwo = getCastedValue(pRelation.getSecondValue(), secondValSMGType);
     }
 
     //FIXME: require calculate cast on integer promotions
-    if (firstCastedSize.get(firstCastedSize.size()-1) > secondCastedSize.get(secondCastedSize.size()-1)) {
-      SMGType firstVALSMGTypeCasted = new SMGType(firstValSMGType.getCastedSize().get(firstValSMGType.getCastedSize().size()-1),
-          firstValSMGType.getCastedSigned().get(firstValSMGType.getCastedSigned().size()-1));
+    if (firstCastedSize > secondCastedSize) {
+      SMGType firstVALSMGTypeCasted = new SMGType(firstCastedSize, firstValSMGType.getCastedSignedLast());
       formulaTwo = cast(formulaTwo, secondValSMGType, firstVALSMGTypeCasted);
     }
 
-    if (secondCastedSize.get(secondCastedSize.size()-1) > firstCastedSize.get(firstCastedSize.size()-1)) {
-      SMGType secondValSMGTypeCasted = new SMGType(secondValSMGType.getCastedSize().get(secondValSMGType.getCastedSize().size()-1),
-          secondValSMGType.getCastedSigned().get(secondValSMGType.getCastedSigned().size()-1));
+    if (secondCastedSize > firstCastedSize) {
+      SMGType secondValSMGTypeCasted = new SMGType(secondCastedSize, secondValSMGType.getCastedSignedLast());
       formulaOne = cast(formulaOne, firstValSMGType, secondValSMGTypeCasted);
     }
 
