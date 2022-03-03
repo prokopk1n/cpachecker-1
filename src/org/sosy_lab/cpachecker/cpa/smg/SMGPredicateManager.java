@@ -1,4 +1,4 @@
-	// This file is part of CPAchecker,
+// This file is part of CPAchecker,
 // a tool for configurable software verification:
 // https://cpachecker.sosy-lab.org
 //
@@ -291,9 +291,6 @@ public class SMGPredicateManager {
   private BooleanFormula getPredicateFormula(SMGPredicateRelation pRelation, boolean conjunction) {
     BooleanFormula result = bfmgr.makeBoolean(conjunction);
 
-    //System.out.format("getPredicateFormula\npRelation= %s\nresult = %s\nconjuction=%b\n",
-        //pRelation.toString(), result.toString(), conjunction);
-
     if (!verifyPredicates) {
       return result;
     }
@@ -308,16 +305,10 @@ public class SMGPredicateManager {
       }
     }
 
-    //System.out.format("result = %s\n", result.toString());
-
     for (ExplicitRelation relation : pRelation.getExplicitRelations()) {
-      //System.out.println("CYCLE");
-      //System.out.println(relation);
-      //System.out.println(result);
       result = addPredicateToFormula(result, relation, conjunction);
     }
 
-    //System.out.format("Out of CYCLE result = %s\n", result.toString());
     return result;
   }
 
