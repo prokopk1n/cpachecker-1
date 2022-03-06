@@ -11,10 +11,12 @@ package org.sosy_lab.cpachecker.cpa.smg.evaluator;
 import static java.util.Collections.singletonList;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map.Entry;
 import org.sosy_lab.cpachecker.cfa.ast.c.CArraySubscriptExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CBinaryExpression;
 import org.sosy_lab.cpachecker.cfa.ast.c.CBinaryExpression.BinaryOperator;
@@ -48,6 +50,9 @@ import org.sosy_lab.cpachecker.cpa.smg.TypeUtils;
 import org.sosy_lab.cpachecker.cpa.smg.evaluator.SMGAbstractObjectAndState.SMGAddressAndState;
 import org.sosy_lab.cpachecker.cpa.smg.evaluator.SMGAbstractObjectAndState.SMGAddressValueAndState;
 import org.sosy_lab.cpachecker.cpa.smg.evaluator.SMGAbstractObjectAndState.SMGValueAndState;
+import org.sosy_lab.cpachecker.cpa.smg.graphs.SMGPredicateRelation.ExplicitRelation;
+import org.sosy_lab.cpachecker.cpa.smg.graphs.SMGPredicateRelation.SMGValuesPair;
+import org.sosy_lab.cpachecker.cpa.smg.graphs.SMGPredicateRelation.SymbolicRelation;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.edge.SMGReadParams;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.SMGType;
 import org.sosy_lab.cpachecker.cpa.smg.graphs.object.SMGObject;
@@ -398,6 +403,80 @@ class ExpressionValueVisitor
     return result;
   }
 
+
+  private int findOutSignOfSMGValue(SMGState state, SMGValue value) {
+    // return 1 if value >= 0,
+    // 0 if can not find out sign of value
+    // -1 if value < 0
+    int sign;
+    if (state.getExplicit(value) != null) {
+        if (state.getExplicit(value).getValue().compareTo(BigInteger.valueOf(0)) >= 0) {
+          return 1;
+        }
+        else {
+          return -1;
+        }
+    }
+    else {
+      for (ExplicitRelation relation : state.getPathPredicateRelation()
+          .getExplicitRelations()) {
+        if (relation.getSymbolicValue().equals(value)) {
+          BinaryOperator binaryOperator = relation.getOperator();
+          switch (binaryOperator) {
+            case GREATER_THAN:
+            case GREATER_EQUAL:
+              if (relation.getExplicitValue().getValue().compareTo(BigInteger.valueOf(0)) >= 0){
+                return 1;
+              }
+              break;
+            case LESS_THAN:
+              if (relation.getExplicitValue().getValue().compareTo(BigInteger.valueOf(0)) <= 0){
+                return -1;
+              }
+              break;
+            case LESS_EQUAL:
+              if (relation.getExplicitValue().getValue().compareTo(BigInteger.valueOf(0)) < 0){
+                return -1;
+              }
+              break;
+            default:
+              break;
+          }
+        }
+      }
+      if (state.getPathPredicateRelation().hasRelation(value)) {
+        for (Entry<SMGValuesPair, ImmutableSet<SymbolicRelation>> relationEntry : state
+            .getPathPredicateRelation().getValuesRelations()) {
+          if (relationEntry.getKey().getFirst().equals(value)) {
+            sign = findOutSignOfSMGValue(state, relationEntry.getKey().getSecond());
+            if (sign == 0) {
+              continue;
+            }
+            for (SymbolicRelation relation : relationEntry.getValue()) {
+              switch (relation.getOperator()) {
+                case LESS_EQUAL:
+                case LESS_THAN:
+                  if (sign == -1)
+                    return -1;
+                  break;
+                case GREATER_EQUAL:
+                case GREATER_THAN:
+                  if (sign == 1) {
+                    return 1;
+                  }
+                  break;
+                default:
+                  break;
+              }
+            }
+          }
+        }
+      }
+
+    }
+    return 0;
+  }
+
   private List<? extends SMGValueAndState> handleBitArithmeticApproximation(
       SMGValue lVal,
       SMGValue rVal,
@@ -443,19 +522,59 @@ class ExpressionValueVisitor
         val = SMGKnownSymValue.of();
         SMGType valSMGType = SMGType.constructSMGType(leftSideType, newState, edge, smgExpressionEvaluator);
 
-        if ( (newState.getExplicit(rVal) != null &&
-            newState.getExplicit(rVal).getValue().compareTo(BigInteger.valueOf(0)) >= 0) ||
-            (newState.getExplicit(lVal) != null &&
-                newState.getExplicit(lVal).getValue().compareTo(BigInteger.valueOf(0)) >= 0) ){
+        if (!leftSideSMGType.getCastedSignedLast()) {
+          newState.getPathPredicateRelation()
+              .addRelation(val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
+          newState.getPathPredicateRelation()
+              .addRelation(val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
           newState.getPathPredicateRelation().addRelation(val, valSMGType,
               SMGZeroValue.INSTANCE, valSMGType, BinaryOperator.GREATER_EQUAL);
         }
+        else {
+          int signLVal = findOutSignOfSMGValue(newState, lVal);
+          int signRVal = findOutSignOfSMGValue(newState, rVal);
 
-        newState.getPathPredicateRelation()
-            .addRelation(val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
-
-        newState.getPathPredicateRelation()
-            .addRelation(val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
+          switch (signLVal) {
+            case -1:
+              if (signRVal == -1) {
+                newState.getPathPredicateRelation()
+                    .addRelation(val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
+                newState.getPathPredicateRelation()
+                    .addRelation(val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
+                newState.getPathPredicateRelation().addRelation(val, valSMGType,
+                    SMGZeroValue.INSTANCE, valSMGType, BinaryOperator.LESS_THAN);
+              } else if (signRVal == 1) {
+                newState.getPathPredicateRelation()
+                    .addRelation(val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
+                newState.getPathPredicateRelation().addRelation(val, valSMGType,
+                    SMGZeroValue.INSTANCE, valSMGType, BinaryOperator.GREATER_EQUAL);
+              }
+              break;
+            case 0:
+              if (signRVal == 1) {
+                newState.getPathPredicateRelation()
+                    .addRelation(val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
+                newState.getPathPredicateRelation().addRelation(val, valSMGType,
+                    SMGZeroValue.INSTANCE, valSMGType, BinaryOperator.GREATER_EQUAL);
+              }
+              break;
+            case 1:
+              if (signRVal == -1 || signRVal == 0) {
+                newState.getPathPredicateRelation()
+                    .addRelation(val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
+              } else if (signRVal == 1) {
+                newState.getPathPredicateRelation()
+                    .addRelation(val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
+                newState.getPathPredicateRelation()
+                    .addRelation(val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
+              }
+              newState.getPathPredicateRelation().addRelation(val, valSMGType,
+                  SMGZeroValue.INSTANCE, valSMGType, BinaryOperator.GREATER_EQUAL);
+              break;
+            default:
+              break;
+          }
+        }
 
         SMGValueAndState res = SMGValueAndState.of(newState, val);
         return singletonList(res);
