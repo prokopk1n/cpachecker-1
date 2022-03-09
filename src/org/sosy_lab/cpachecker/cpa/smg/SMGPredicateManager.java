@@ -254,11 +254,7 @@ public class SMGPredicateManager {
   public BooleanFormula getErrorPredicateFormula(
       SMGPredicateRelation pErrorPredicate, UnmodifiableSMGState pState) {
     BooleanFormula errorFormula = getPredicateFormula(pErrorPredicate, false);
-    //System.out.print("errorFormula = ");
-    //System.out.println(errorFormula);
     BooleanFormula pathFormula = getPathPredicateFormula(pState);
-    //System.out.print("pathFormula = ");
-    //System.out.println(pathFormula);
     pathFormula = fmgr.makeAnd(pathFormula, getExplicitFormulaFromState(pState));
     return fmgr.makeAnd(pathFormula, errorFormula);
   }
