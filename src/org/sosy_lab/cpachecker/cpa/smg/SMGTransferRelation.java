@@ -829,7 +829,7 @@ public class SMGTransferRelation
     List<SMGState> result = new ArrayList<>(4);
     CType rValueType = TypeUtils.getRealExpressionType(rValue);
 
-    SMGExpressionEvaluator expEvaluator = new SMGExpressionEvaluator(logger, machineModel, kind);
+    SMGExpressionEvaluator expEvaluator = new SMGExpressionEvaluator(logger, machineModel, kind, options);
     expEvaluator.setBuiltins(expressionEvaluator.getBuiltins());
     for (SMGExplicitValueAndState expValueAndState :
         expEvaluator.evaluateExplicitValue(pNewState, cfaEdge, rValue)) {
@@ -892,7 +892,7 @@ public class SMGTransferRelation
       throws CPATransferException {
 
     List<Pair<SMGState, SMGKnownSymbolicValue>> result = new ArrayList<>();
-    SMGExpressionEvaluator expEvaluator = new SMGExpressionEvaluator(logger, machineModel, kind);
+    SMGExpressionEvaluator expEvaluator = new SMGExpressionEvaluator(logger, machineModel, kind, options);
     expEvaluator.setBuiltins(expressionEvaluator.getBuiltins());
 
 

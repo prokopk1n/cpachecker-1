@@ -21,6 +21,7 @@ import org.sosy_lab.cpachecker.cfa.ast.c.CExpression;
 import org.sosy_lab.cpachecker.cfa.model.CFAEdge;
 import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.cpa.smg.SMGInconsistentException;
+import org.sosy_lab.cpachecker.cpa.smg.SMGOptions;
 import org.sosy_lab.cpachecker.cpa.smg.SMGState;
 import org.sosy_lab.cpachecker.cpa.smg.UnmodifiableSMGState;
 import org.sosy_lab.cpachecker.cpa.smg.evaluator.SMGAbstractObjectAndState.SMGValueAndState;
@@ -40,8 +41,8 @@ public class AssumeVisitor extends ExpressionValueVisitor {
 
   private final Map<UnmodifiableSMGState, BinaryRelationResult> relations = new HashMap<>();
 
-  public AssumeVisitor(SMGExpressionEvaluator pSmgExpressionEvaluator, CFAEdge pEdge, SMGState pSmgState) {
-    super(pSmgExpressionEvaluator, pEdge, pSmgState);
+  public AssumeVisitor(SMGExpressionEvaluator pSmgExpressionEvaluator, CFAEdge pEdge, SMGState pSmgState, SMGOptions pOptions) {
+    super(pSmgExpressionEvaluator, pEdge, pSmgState, pOptions);
   }
 
   @Override

@@ -210,6 +210,11 @@ public class SMGOptions {
       description = "Produce error trace instead of exception during analysis")
   private boolean produceErrorTraceInsteadOfException = false;
 
+  @Option(
+      secure = true,
+      description = "Check undefined behavior in bit shift")
+  private boolean checkRightSideOfShiftOperator = true;
+
   public enum SMGExportLevel {
     NEVER,
     LEAF,
@@ -336,4 +341,6 @@ public class SMGOptions {
   public boolean produceErrorTraceInsteadOfException() {
     return produceErrorTraceInsteadOfException;
   }
+
+  public boolean isHandleRightSideOfShift() { return checkRightSideOfShiftOperator; }
 }

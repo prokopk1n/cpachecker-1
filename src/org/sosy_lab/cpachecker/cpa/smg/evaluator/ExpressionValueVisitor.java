@@ -47,6 +47,7 @@ import org.sosy_lab.cpachecker.cfa.types.c.CPointerType;
 import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.cfa.types.c.CTypes;
 import org.sosy_lab.cpachecker.cpa.smg.SMGInconsistentException;
+import org.sosy_lab.cpachecker.cpa.smg.SMGOptions;
 import org.sosy_lab.cpachecker.cpa.smg.SMGState;
 import org.sosy_lab.cpachecker.cpa.smg.TypeUtils;
 import org.sosy_lab.cpachecker.cpa.smg.evaluator.SMGAbstractObjectAndState.SMGAddressAndState;
@@ -83,6 +84,8 @@ class ExpressionValueVisitor
 
   final SMGExpressionEvaluator smgExpressionEvaluator;
 
+  private final SMGOptions options;
+
   /**
    * The edge should never be used to retrieve any information. It should only be used for logging
    * and debugging, because we do not know the context of the caller.
@@ -91,10 +94,11 @@ class ExpressionValueVisitor
 
   private final SMGState initialSmgState;
 
-  public ExpressionValueVisitor(SMGExpressionEvaluator pSmgExpressionEvaluator, CFAEdge pEdge, SMGState pSmgState) {
+  public ExpressionValueVisitor(SMGExpressionEvaluator pSmgExpressionEvaluator, CFAEdge pEdge, SMGState pSmgState, SMGOptions pOptions) {
     smgExpressionEvaluator = pSmgExpressionEvaluator;
     cfaEdge = pEdge;
     initialSmgState = pSmgState;
+    options = pOptions;
   }
 
   @Override
@@ -478,7 +482,7 @@ class ExpressionValueVisitor
           return -1;
         }
     }
-    return findOutSignOfSymbolicValue(state, value, new HashSet<SMGValue>());
+    return findOutSignOfSymbolicValue(state, value, new HashSet<>());
   }
 
   private List<? extends SMGValueAndState> handleBitArithmeticApproximation(
@@ -499,11 +503,13 @@ class ExpressionValueVisitor
     switch (binaryOperator) {
       case SHIFT_RIGHT:
       case SHIFT_LEFT:
-        newState.getErrorPredicateRelation().addRelation(rVal, rightSideSMGType,
-            SMGZeroValue.INSTANCE, rightSideSMGType, BinaryOperator.LESS_THAN);
-        newState.getErrorPredicateRelation().addExplicitRelation(rVal, rightSideSMGType,
-            SMGKnownExpValue.valueOf(BigInteger.valueOf(leftSideSMGType.getCastedSizeLast())),
-            BinaryOperator.GREATER_EQUAL);
+        if (options.isHandleRightSideOfShift()) {
+          newState.getErrorPredicateRelation().addRelation(rVal, rightSideSMGType,
+              SMGZeroValue.INSTANCE, rightSideSMGType, BinaryOperator.LESS_THAN);
+          newState.getErrorPredicateRelation().addExplicitRelation(rVal, rightSideSMGType,
+              SMGKnownExpValue.valueOf(BigInteger.valueOf(leftSideSMGType.getCastedSizeLast())),
+              BinaryOperator.GREATER_EQUAL);
+        }
 
         val =  isZeroBoth ? SMGZeroValue.INSTANCE : SMGUnknownValue.INSTANCE;
         return singletonList(SMGValueAndState.of(newState, val));

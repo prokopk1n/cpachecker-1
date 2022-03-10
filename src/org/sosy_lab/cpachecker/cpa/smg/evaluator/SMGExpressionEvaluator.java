@@ -39,6 +39,7 @@ import org.sosy_lab.cpachecker.cfa.types.c.CPointerType;
 import org.sosy_lab.cpachecker.cfa.types.c.CType;
 import org.sosy_lab.cpachecker.cpa.smg.SMGBuiltins;
 import org.sosy_lab.cpachecker.cpa.smg.SMGInconsistentException;
+import org.sosy_lab.cpachecker.cpa.smg.SMGOptions;
 import org.sosy_lab.cpachecker.cpa.smg.SMGState;
 import org.sosy_lab.cpachecker.cpa.smg.SMGTransferRelationKind;
 import org.sosy_lab.cpachecker.cpa.smg.TypeUtils;
@@ -76,11 +77,13 @@ public class SMGExpressionEvaluator {
   final MachineModel machineModel;
   SMGBuiltins builtins;
   final SMGTransferRelationKind kind;
+  private final SMGOptions options;
 
-  public SMGExpressionEvaluator(LogManagerWithoutDuplicates pLogger, MachineModel pMachineModel, SMGTransferRelationKind pKind) {
+  public SMGExpressionEvaluator(LogManagerWithoutDuplicates pLogger, MachineModel pMachineModel, SMGTransferRelationKind pKind, SMGOptions pOptions) {
     logger = pLogger;
     machineModel = pMachineModel;
     kind = pKind;
+    options = pOptions;
   }
 
   public void setBuiltins(SMGBuiltins pBuiltins) {
@@ -134,6 +137,8 @@ public class SMGExpressionEvaluator {
       throws UnrecognizedCodeException {
     return getBitSizeof(pEdge, pType, pState, Optional.empty());
   }
+
+  protected SMGOptions getOptions() { return options; }
 
   private long getBitSizeof(
       CFAEdge edge, CType pType, SMGState pState, Optional<CExpression> pExpression)
@@ -761,15 +766,15 @@ public class SMGExpressionEvaluator {
   }
 
   PointerVisitor getPointerVisitor(CFAEdge pCfaEdge, SMGState pNewState) {
-    return new PointerVisitor(this, pCfaEdge, pNewState);
+    return new PointerVisitor(this, pCfaEdge, pNewState, options);
   }
 
   public AssumeVisitor getAssumeVisitor(CFAEdge pCfaEdge, SMGState pNewState) {
-    return new AssumeVisitor(this, pCfaEdge, pNewState);
+    return new AssumeVisitor(this, pCfaEdge, pNewState, options);
   }
 
   ExpressionValueVisitor getExpressionValueVisitor(CFAEdge pCfaEdge, SMGState pNewState) {
-    return new ExpressionValueVisitor(this, pCfaEdge, pNewState);
+    return new ExpressionValueVisitor(this, pCfaEdge, pNewState, options);
   }
 
   LValueAssignmentVisitor getLValueAssignmentVisitor(CFAEdge pCfaEdge, SMGState pNewState) {
