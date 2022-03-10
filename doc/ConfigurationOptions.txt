@@ -2742,7 +2742,7 @@ cpa.smg.arrayAllocationFunctions = {"calloc"}
 cpa.smg.checkForMemLeaksAtEveryFrameDrop = true
 
 # Check undefined behavior in bit shift
-cpa.smg.checkRightSideOfShiftOperator = true
+cpa.smg.checkRightSideOfShiftOperator = false
 
 # Deallocation functions
 cpa.smg.deallocationFunctions = {"free"}
