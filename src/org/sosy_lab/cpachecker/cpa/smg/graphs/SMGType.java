@@ -51,7 +51,6 @@ public class SMGType {
     originSigned = pOriginType.isOriginSigned();
     castedSize = ImmutableList.copyOf(newCastedSize);
     castedSigned = ImmutableList.copyOf(newCastedSigned);
-
   }
 
   public static SMGType constructSMGType(
@@ -65,13 +64,21 @@ public class SMGType {
     return new SMGType(size, isSigned);
   }
 
-  public ImmutableList<Long> getCastedSize() { return castedSize; }
+  public ImmutableList<Long> getCastedSize() {
+    return castedSize;
+  }
 
-  public Long getCastedSizeLast() { return castedSize.get(castedSize.size() - 1); }
+  public Long getCastedSizeLast() {
+    return castedSize.get(castedSize.size() - 1);
+  }
 
-  public ImmutableList<Boolean> getCastedSigned() { return castedSigned; }
+  public ImmutableList<Boolean> getCastedSigned() {
+    return castedSigned;
+  }
 
-  public Boolean getCastedSignedLast() { return castedSigned.get(castedSigned.size() - 1); }
+  public Boolean getCastedSignedLast() {
+    return castedSigned.get(castedSigned.size() - 1);
+  }
 
   public long getOriginSize() {
     return originSize;

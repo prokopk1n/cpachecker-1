@@ -41,7 +41,11 @@ public class AssumeVisitor extends ExpressionValueVisitor {
 
   private final Map<UnmodifiableSMGState, BinaryRelationResult> relations = new HashMap<>();
 
-  public AssumeVisitor(SMGExpressionEvaluator pSmgExpressionEvaluator, CFAEdge pEdge, SMGState pSmgState, SMGOptions pOptions) {
+  public AssumeVisitor(
+      SMGExpressionEvaluator pSmgExpressionEvaluator,
+      CFAEdge pEdge,
+      SMGState pSmgState,
+      SMGOptions pOptions) {
     super(pSmgExpressionEvaluator, pEdge, pSmgState, pOptions);
   }
 
@@ -124,15 +128,16 @@ public class AssumeVisitor extends ExpressionValueVisitor {
 
               // TODO
               // The following predicate relation is a completely unsound assumption,
-              // because we know nothing about the calling context, not even, if we are in a negated (!) expression.
-              // This might clearly be a bug, but I could currently not find a better way to solve this.
+              // because we know nothing about the calling context, not even, if we are in a negated
+              // (!) expression.
+              // This might clearly be a bug, but I could currently not find a better way to solve
+              // this.
               // The code works well for expressions that are not nested, like "a==b" or "a!=b",
               // but is invalid for "(a==b)==c".
               // There exists code in SMGTransferRelation.strenghten
               // that even needs to negate an edge to get correct results.
 
-
-              //FIXME: require calculate cast on integer promotion
+              // FIXME: require calculate cast on integer promotion
               newState.addPredicateRelation(
                   // next line: use the symbolic value here and not the potential explicit one.
                   leftSideVal,

@@ -56,7 +56,11 @@ import org.sosy_lab.cpachecker.exceptions.UnrecognizedCodeException;
  */
 class PointerVisitor extends ExpressionValueVisitor {
 
-  public PointerVisitor(SMGExpressionEvaluator pSmgExpressionEvaluator, CFAEdge pEdge, SMGState pSmgState, SMGOptions pOptions) {
+  public PointerVisitor(
+      SMGExpressionEvaluator pSmgExpressionEvaluator,
+      CFAEdge pEdge,
+      SMGState pSmgState,
+      SMGOptions pOptions) {
     super(pSmgExpressionEvaluator, pEdge, pSmgState, pOptions);
   }
 

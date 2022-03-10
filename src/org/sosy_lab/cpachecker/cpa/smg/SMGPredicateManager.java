@@ -103,18 +103,18 @@ public class SMGPredicateManager {
     BitvectorFormula explicitValueFormula;
     BitvectorFormula explicitValueFormulaCasted;
 
-
     if (explicitValue.compareTo(BigInteger.valueOf(0)) < 0) {
-      if (explicitValue.abs().compareTo(BigInteger.valueOf(1).shiftLeft((int)(explicitSize - 1))) > 0) {
+      if (explicitValue.abs().compareTo(BigInteger.valueOf(1).shiftLeft((int) (explicitSize - 1)))
+          > 0) {
         symbolicSMGType = new SMGType(new SMGType(64, true), symbolicSMGType);
         explicitSize = 64;
       }
     } else if (isExplicitSigned) {
-      if (explicitValue.compareTo(BigInteger.valueOf(1).shiftLeft((int)(explicitSize - 1))) >= 0)  {
+      if (explicitValue.compareTo(BigInteger.valueOf(1).shiftLeft((int) (explicitSize - 1))) >= 0) {
         symbolicSMGType = new SMGType(new SMGType(64, true), symbolicSMGType);
         explicitSize = 64;
       }
-    } else if (explicitValue.compareTo(BigInteger.valueOf(1).shiftLeft((int)explicitSize)) >= 0) {
+    } else if (explicitValue.compareTo(BigInteger.valueOf(1).shiftLeft((int) explicitSize)) >= 0) {
       symbolicSMGType = new SMGType(new SMGType(64, true), symbolicSMGType);
       explicitSize = 64;
     }
@@ -122,9 +122,11 @@ public class SMGPredicateManager {
     explicitValueFormula =
         efmgr.makeBitvector(BigInteger.valueOf(explicitSize + 1).intValueExact(), explicitValue);
     explicitValueFormulaCasted =
-        efmgr.extract(explicitValueFormula, BigInteger.valueOf(explicitSize - 1).intValueExact(),
-            0, isExplicitSigned);
-
+        efmgr.extract(
+            explicitValueFormula,
+            BigInteger.valueOf(explicitSize - 1).intValueExact(),
+            0,
+            isExplicitSigned);
 
     BitvectorFormula symbolicValue = getCastedValue(pRelation.getSymbolicValue(), symbolicSMGType);
     result = createBooleanFormula(symbolicValue, explicitValueFormulaCasted, op);
@@ -178,7 +180,8 @@ public class SMGPredicateManager {
       isSigned = isToSigned.poll();
       if (toSizeElem > fromSize) {
         result =
-            efmgr.extend(result, BigInteger.valueOf(toSizeElem - fromSize).intValueExact(), isSigned);
+            efmgr.extend(
+                result, BigInteger.valueOf(toSizeElem - fromSize).intValueExact(), isSigned);
       } else if (toSizeElem < fromSize) {
         result =
             efmgr.extract(result, BigInteger.valueOf(toSizeElem - 1).intValueExact(), 0, isSigned);
@@ -221,12 +224,14 @@ public class SMGPredicateManager {
 
     //FIXME: require calculate cast on integer promotions
     if (firstCastedSize > secondCastedSize) {
-      SMGType firstVALSMGTypeCasted = new SMGType(firstCastedSize, firstValSMGType.getCastedSignedLast());
+      SMGType firstVALSMGTypeCasted =
+          new SMGType(firstCastedSize, firstValSMGType.getCastedSignedLast());
       formulaTwo = cast(formulaTwo, secondValSMGType, firstVALSMGTypeCasted);
     }
 
     if (secondCastedSize > firstCastedSize) {
-      SMGType secondValSMGTypeCasted = new SMGType(secondCastedSize, secondValSMGType.getCastedSignedLast());
+      SMGType secondValSMGTypeCasted =
+          new SMGType(secondCastedSize, secondValSMGType.getCastedSignedLast());
       formulaOne = cast(formulaOne, firstValSMGType, secondValSMGTypeCasted);
     }
 
@@ -244,10 +249,10 @@ public class SMGPredicateManager {
   public BooleanFormula getPathPredicateFormula(UnmodifiableSMGState pState) {
     SMGPredicateRelation pRelation = pState.getPathPredicateRelation();
     BooleanFormula predicateFormula = getPredicateFormula(pRelation, true);
-    //System.out.format("predicateFormula = %s\npSate = %s\n",predicateFormula, pState);
-    //System.out.format("explicitFormulaFromState = %s\n", getExplicitFormulaFromState(pState));
+    // System.out.format("predicateFormula = %s\npSate = %s\n",predicateFormula, pState);
+    // System.out.format("explicitFormulaFromState = %s\n", getExplicitFormulaFromState(pState));
     predicateFormula = fmgr.makeAnd(predicateFormula, getExplicitFormulaFromState(pState));
-    //System.out.format("PathPredicateFormula = %s\n", predicateFormula.toString());
+    // System.out.format("PathPredicateFormula = %s\n", predicateFormula.toString());
     return predicateFormula;
   }
 
@@ -277,7 +282,13 @@ public class SMGPredicateManager {
         BooleanFormula equality =
             fmgr.makeEqual(
                 valueFormula,
-                efmgr.makeBitvector(BigInteger.valueOf(symbolicType.getCastedSize().get(symbolicType.getCastedSize().size()-1)).intValueExact(), explicitValue.getValue()));
+                efmgr.makeBitvector(
+                    BigInteger.valueOf(
+                            symbolicType
+                                .getCastedSize()
+                                .get(symbolicType.getCastedSize().size() - 1))
+                        .intValueExact(),
+                    explicitValue.getValue()));
         result = fmgr.makeAnd(result, equality);
       }
     }

@@ -79,7 +79,11 @@ public class SMGExpressionEvaluator {
   final SMGTransferRelationKind kind;
   private final SMGOptions options;
 
-  public SMGExpressionEvaluator(LogManagerWithoutDuplicates pLogger, MachineModel pMachineModel, SMGTransferRelationKind pKind, SMGOptions pOptions) {
+  public SMGExpressionEvaluator(
+      LogManagerWithoutDuplicates pLogger,
+      MachineModel pMachineModel,
+      SMGTransferRelationKind pKind,
+      SMGOptions pOptions) {
     logger = pLogger;
     machineModel = pMachineModel;
     kind = pKind;
@@ -138,7 +142,9 @@ public class SMGExpressionEvaluator {
     return getBitSizeof(pEdge, pType, pState, Optional.empty());
   }
 
-  protected SMGOptions getOptions() { return options; }
+  protected SMGOptions getOptions() {
+    return options;
+  }
 
   private long getBitSizeof(
       CFAEdge edge, CType pType, SMGState pState, Optional<CExpression> pExpression)
