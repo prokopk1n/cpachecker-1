@@ -103,20 +103,22 @@ public class SMGPredicateManager {
     BitvectorFormula explicitValueFormula;
     BitvectorFormula explicitValueFormulaCasted;
 
+    long newExplicitSize = (long)Math.ceil(Math.log(explicitValue.abs().doubleValue())/Math.log(2));
+
     if (explicitValue.compareTo(BigInteger.valueOf(0)) < 0) {
       if (explicitValue.abs().compareTo(BigInteger.valueOf(1).shiftLeft((int) (explicitSize - 1)))
           > 0) {
-        symbolicSMGType = new SMGType(new SMGType(64, true), symbolicSMGType);
-        explicitSize = 64;
+        explicitSize = newExplicitSize + 1;
+        symbolicSMGType = new SMGType(new SMGType(explicitSize, isExplicitSigned), symbolicSMGType);
       }
     } else if (isExplicitSigned) {
       if (explicitValue.compareTo(BigInteger.valueOf(1).shiftLeft((int) (explicitSize - 1))) >= 0) {
-        symbolicSMGType = new SMGType(new SMGType(64, true), symbolicSMGType);
-        explicitSize = 64;
+        explicitSize = newExplicitSize + 1;
+        symbolicSMGType = new SMGType(new SMGType(explicitSize, true), symbolicSMGType);
       }
     } else if (explicitValue.compareTo(BigInteger.valueOf(1).shiftLeft((int) explicitSize)) >= 0) {
-      symbolicSMGType = new SMGType(new SMGType(64, true), symbolicSMGType);
-      explicitSize = 64;
+      explicitSize = newExplicitSize;
+      symbolicSMGType = new SMGType(new SMGType(explicitSize, false), symbolicSMGType);
     }
 
     explicitValueFormula =
