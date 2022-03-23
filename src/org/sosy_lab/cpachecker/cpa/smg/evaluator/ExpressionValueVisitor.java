@@ -556,10 +556,6 @@ class ExpressionValueVisitor
           newState
               .getPathPredicateRelation()
               .addRelation(val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
-          newState
-              .getPathPredicateRelation()
-              .addRelation(
-                  val, valSMGType, SMGZeroValue.INSTANCE, valSMGType, BinaryOperator.GREATER_EQUAL);
         } else {
           int signLVal = findOutSignOfSMGValue(newState, lVal);
           int signRVal = findOutSignOfSMGValue(newState, rVal);
