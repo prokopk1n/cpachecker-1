@@ -527,7 +527,7 @@ class ExpressionValueVisitor
                   BinaryOperator.GREATER_EQUAL);
         }
 
-        val = isZeroBoth ? SMGZeroValue.INSTANCE : SMGUnknownValue.INSTANCE;
+        val = isZeroBoth ? SMGZeroValue.INSTANCE : SMGKnownSymValue.of();
         return singletonList(SMGValueAndState.of(newState, val));
 
       case BINARY_XOR:
