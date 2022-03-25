@@ -103,7 +103,8 @@ public class SMGPredicateManager {
     BitvectorFormula explicitValueFormula;
     BitvectorFormula explicitValueFormulaCasted;
 
-    long newExplicitSize = (long)Math.ceil(Math.log(explicitValue.abs().doubleValue())/Math.log(2));
+    long newExplicitSize =
+        (long) Math.ceil(Math.log(explicitValue.abs().doubleValue()) / Math.log(2));
 
     if (explicitValue.compareTo(BigInteger.valueOf(0)) < 0) {
       if (explicitValue.abs().compareTo(BigInteger.valueOf(1).shiftLeft((int) (explicitSize - 1)))
@@ -251,10 +252,7 @@ public class SMGPredicateManager {
   public BooleanFormula getPathPredicateFormula(UnmodifiableSMGState pState) {
     SMGPredicateRelation pRelation = pState.getPathPredicateRelation();
     BooleanFormula predicateFormula = getPredicateFormula(pRelation, true);
-    // System.out.format("predicateFormula = %s\npSate = %s\n",predicateFormula, pState);
-    // System.out.format("explicitFormulaFromState = %s\n", getExplicitFormulaFromState(pState));
     predicateFormula = fmgr.makeAnd(predicateFormula, getExplicitFormulaFromState(pState));
-    // System.out.format("PathPredicateFormula = %s\n", predicateFormula.toString());
     return predicateFormula;
   }
 

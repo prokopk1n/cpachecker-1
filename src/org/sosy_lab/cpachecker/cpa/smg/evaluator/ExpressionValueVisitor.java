@@ -489,6 +489,28 @@ class ExpressionValueVisitor
     return findOutSignOfSymbolicValue(state, value, new HashSet<>());
   }
 
+  private void addBinaryAndPredicate(
+      SMGState newState,
+      SMGValue val,
+      SMGType valSMGType,
+      SMGValue otherVal,
+      SMGType otherSMGType,
+      BinaryOperator operator) {
+    if (newState.getExplicit(otherVal) != null) {
+      newState
+          .getPathPredicateRelation()
+          .addExplicitRelation(
+              val,
+              valSMGType,
+              SMGKnownExpValue.valueOf(newState.getExplicit(otherVal).getValue()),
+              operator);
+    } else {
+      newState
+          .getPathPredicateRelation()
+          .addSymbolicRelation(val, valSMGType, otherVal, otherSMGType, operator);
+    }
+  }
+
   private List<? extends SMGValueAndState> handleBitArithmeticApproximation(
       SMGValue lVal,
       SMGValue rVal,
@@ -550,12 +572,10 @@ class ExpressionValueVisitor
             SMGType.constructSMGType(leftSideType, newState, edge, smgExpressionEvaluator);
 
         if (!leftSideSMGType.getCastedSignedLast()) {
-          newState
-              .getPathPredicateRelation()
-              .addRelation(val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
-          newState
-              .getPathPredicateRelation()
-              .addRelation(val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
+          addBinaryAndPredicate(
+              newState, val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
+          addBinaryAndPredicate(
+              newState, val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
         } else {
           int signLVal = findOutSignOfSMGValue(newState, lVal);
           int signRVal = findOutSignOfSMGValue(newState, rVal);
@@ -563,74 +583,59 @@ class ExpressionValueVisitor
           switch (signLVal) {
             case -1:
               if (signRVal == -1) {
-                newState
-                    .getPathPredicateRelation()
-                    .addRelation(
-                        val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
-                newState
-                    .getPathPredicateRelation()
-                    .addRelation(val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
-                newState
-                    .getPathPredicateRelation()
-                    .addRelation(
-                        val,
-                        valSMGType,
-                        SMGZeroValue.INSTANCE,
-                        valSMGType,
-                        BinaryOperator.LESS_THAN);
+                addBinaryAndPredicate(
+                    newState, val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
+                addBinaryAndPredicate(
+                    newState, val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
+                addBinaryAndPredicate(
+                    newState,
+                    val,
+                    valSMGType,
+                    SMGZeroValue.INSTANCE,
+                    valSMGType,
+                    BinaryOperator.LESS_THAN);
               } else if (signRVal == 1) {
-                newState
-                    .getPathPredicateRelation()
-                    .addRelation(
-                        val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
-                newState
-                    .getPathPredicateRelation()
-                    .addRelation(
-                        val,
-                        valSMGType,
-                        SMGZeroValue.INSTANCE,
-                        valSMGType,
-                        BinaryOperator.GREATER_EQUAL);
+                addBinaryAndPredicate(
+                    newState, val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
+                addBinaryAndPredicate(
+                    newState,
+                    val,
+                    valSMGType,
+                    SMGZeroValue.INSTANCE,
+                    valSMGType,
+                    BinaryOperator.GREATER_EQUAL);
               }
               break;
             case 0:
               if (signRVal == 1) {
-                newState
-                    .getPathPredicateRelation()
-                    .addRelation(
-                        val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
-                newState
-                    .getPathPredicateRelation()
-                    .addRelation(
-                        val,
-                        valSMGType,
-                        SMGZeroValue.INSTANCE,
-                        valSMGType,
-                        BinaryOperator.GREATER_EQUAL);
+                addBinaryAndPredicate(
+                    newState, val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
+                addBinaryAndPredicate(
+                    newState,
+                    val,
+                    valSMGType,
+                    SMGZeroValue.INSTANCE,
+                    valSMGType,
+                    BinaryOperator.GREATER_EQUAL);
               }
               break;
             case 1:
               if (signRVal == -1 || signRVal == 0) {
-                newState
-                    .getPathPredicateRelation()
-                    .addRelation(val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
+                addBinaryAndPredicate(
+                    newState, val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
               } else if (signRVal == 1) {
-                newState
-                    .getPathPredicateRelation()
-                    .addRelation(val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
-                newState
-                    .getPathPredicateRelation()
-                    .addRelation(
-                        val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
+                addBinaryAndPredicate(
+                    newState, val, valSMGType, lVal, leftSideSMGType, BinaryOperator.LESS_EQUAL);
+                addBinaryAndPredicate(
+                    newState, val, valSMGType, rVal, rightSideSMGType, BinaryOperator.LESS_EQUAL);
               }
-              newState
-                  .getPathPredicateRelation()
-                  .addRelation(
-                      val,
-                      valSMGType,
-                      SMGZeroValue.INSTANCE,
-                      valSMGType,
-                      BinaryOperator.GREATER_EQUAL);
+              addBinaryAndPredicate(
+                  newState,
+                  val,
+                  valSMGType,
+                  SMGZeroValue.INSTANCE,
+                  valSMGType,
+                  BinaryOperator.GREATER_EQUAL);
               break;
             default:
               break;
