@@ -211,7 +211,7 @@ public class SMGOptions {
   private boolean produceErrorTraceInsteadOfException = false;
 
   @Option(secure = true, description = "Check undefined behavior in bit shift")
-  private boolean checkRightSideOfShiftOperator = false;
+  private boolean checkRightSideOfShiftOperator = true;
 
   public enum SMGExportLevel {
     NEVER,
