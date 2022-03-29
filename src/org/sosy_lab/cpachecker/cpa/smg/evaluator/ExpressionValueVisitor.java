@@ -532,43 +532,22 @@ class ExpressionValueVisitor
       case SHIFT_RIGHT:
       case SHIFT_LEFT:
         if (options.isHandleRightSideOfShift()) {
-          if (newState.getExplicit(rVal) != null) {
+          if (rightSideSMGType.getCastedSignedLast()) {
             newState
                 .getErrorPredicateRelation()
                 .addExplicitRelation(
-                    SMGZeroValue.INSTANCE,
-                    rightSideSMGType,
-                    SMGKnownExpValue.valueOf(newState.getExplicit(rVal).getValue()),
-                    BinaryOperator.GREATER_THAN);
-            newState
-                .getErrorPredicateRelation()
-                .addExplicitRelation(
-                    SMGZeroValue.INSTANCE,
-                    rightSideSMGType,
-                    SMGKnownExpValue.valueOf(
-                        newState
-                            .getExplicit(rVal)
-                            .getValue()
-                            .subtract(BigInteger.valueOf(leftSideSMGType.getCastedSizeLast()))),
-                    BinaryOperator.LESS_EQUAL);
-          } else {
-            newState
-                .getErrorPredicateRelation()
-                .addRelation(
                     rVal,
                     rightSideSMGType,
                     SMGZeroValue.INSTANCE,
-                    rightSideSMGType,
                     BinaryOperator.LESS_THAN);
-            newState
-                .getErrorPredicateRelation()
-                .addExplicitRelation(
-                    rVal,
-                    rightSideSMGType,
-                    SMGKnownExpValue.valueOf(
-                        BigInteger.valueOf(leftSideSMGType.getCastedSizeLast())),
-                    BinaryOperator.GREATER_EQUAL);
           }
+          newState
+              .getErrorPredicateRelation()
+              .addExplicitRelation(
+                  rVal,
+                  rightSideSMGType,
+                  SMGKnownExpValue.valueOf(BigInteger.valueOf(leftSideSMGType.getCastedSizeLast())),
+                  BinaryOperator.GREATER_EQUAL);
         }
 
         val = isZeroBoth ? SMGZeroValue.INSTANCE : SMGKnownSymValue.of();

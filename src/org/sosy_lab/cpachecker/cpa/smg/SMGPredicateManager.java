@@ -285,8 +285,7 @@ public class SMGPredicateManager {
                 efmgr.makeBitvector(
                     BigInteger.valueOf(
                             symbolicType
-                                .getCastedSize()
-                                .get(symbolicType.getCastedSize().size() - 1))
+                                .getCastedSizeLast())
                         .intValueExact(),
                     explicitValue.getValue()));
         result = fmgr.makeAnd(result, equality);
