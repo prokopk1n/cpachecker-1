@@ -276,7 +276,8 @@ public final class SMGPredicateRelation {
   }
 
   public boolean hasRelation(SMGValue pSymbolicValue) {
-    return smgValuesDependency.contains(pSymbolicValue) || smgExplicitValueRelation.contains(pSymbolicValue);
+    return smgValuesDependency.contains(pSymbolicValue)
+        || smgExplicitValueRelation.contains(pSymbolicValue);
   }
 
   static public class SymbolicRelation {

@@ -11,6 +11,7 @@ package org.sosy_lab.cpachecker.cpa.smg;
 import com.google.common.collect.ImmutableSet;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
@@ -264,6 +265,41 @@ public class SMGPredicateManager {
     return fmgr.makeAnd(pathFormula, errorFormula);
   }
 
+  private SMGType findSMGType(
+      SMGValue symbolicValue,
+      SMGPredicateRelation errorPredicateRelation,
+      SMGPredicateRelation pathPredicateRelation) {
+
+    SMGType symbolicType = valueTypes.get(symbolicValue);
+
+    outer:
+    if (symbolicType == null) {
+      for (SMGPredicateRelation predicateRelation :
+          Arrays.asList(errorPredicateRelation, pathPredicateRelation)) {
+        for (ExplicitRelation relation : predicateRelation.getExplicitRelations()) {
+          if (relation.getSymbolicValue().equals(symbolicValue)) {
+            symbolicType = relation.getSymbolicSMGType();
+            break outer;
+          }
+        }
+        for (Entry<SMGValuesPair, ImmutableSet<SymbolicRelation>> relationEntry :
+            predicateRelation.getValuesRelations()) {
+          if (relationEntry.getKey().getFirst().equals(symbolicValue)
+              && !relationEntry.getValue().isEmpty()) {
+            SymbolicRelation relation = relationEntry.getValue().asList().get(0);
+            if (relation.getFirstValue().equals(symbolicValue)) {
+              symbolicType = relation.getFirstValSMGType();
+            } else {
+              symbolicType = relation.getSecondValSMGType();
+            }
+            break outer;
+          }
+        }
+      }
+    }
+    return symbolicType;
+  }
+
   private BooleanFormula getExplicitFormulaFromState(UnmodifiableSMGState pState) {
     BooleanFormula result = bfmgr.makeBoolean(true);
     if (!verifyPredicates) {
@@ -277,16 +313,14 @@ public class SMGPredicateManager {
       if (errorPredicateRelation.hasRelation(symbolicValue)
           || pathPredicateRelation.hasRelation(symbolicValue)) {
         SMGKnownExpValue explicitValue = expValueEntry.getValue();
-        SMGType symbolicType = valueTypes.get(symbolicValue);
+        SMGType symbolicType =
+            findSMGType(symbolicValue, errorPredicateRelation, pathPredicateRelation);
         BitvectorFormula valueFormula = getCastedValue(symbolicValue, symbolicType);
         BooleanFormula equality =
             fmgr.makeEqual(
                 valueFormula,
                 efmgr.makeBitvector(
-                    BigInteger.valueOf(
-                            symbolicType
-                                .getCastedSizeLast())
-                        .intValueExact(),
+                    BigInteger.valueOf(symbolicType.getCastedSizeLast()).intValueExact(),
                     explicitValue.getValue()));
         result = fmgr.makeAnd(result, equality);
       }
