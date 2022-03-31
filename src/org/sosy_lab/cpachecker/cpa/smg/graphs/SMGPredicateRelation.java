@@ -149,6 +149,30 @@ public final class SMGPredicateRelation {
     }
   }
 
+  public SymbolicRelation findAnySymbolicRelation(SMGValue pValue) {
+    if (!smgValuesDependency.get(pValue).isEmpty()) {
+      return smgValuesRelation
+          .get(SMGValuesPair.of(pValue, smgValuesDependency.get(pValue).iterator().next()))
+          .iterator()
+          .next();
+    }
+
+    return null;
+  }
+
+  public ExplicitRelation findAnyExplicitRelation(SMGValue pValue) {
+    if (!smgExplicitValueRelation.get(pValue).isEmpty()) {
+      return smgExplicitValueRelation
+          .get(pValue)
+          .iterator()
+          .next();
+    }
+
+    return null;
+  }
+
+
+
   public void removeValue(SMGValue pValue) {
     for (SMGValue pOposit : smgValuesDependency.get(pValue)) {
 

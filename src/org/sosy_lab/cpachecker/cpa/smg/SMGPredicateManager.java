@@ -272,32 +272,23 @@ public class SMGPredicateManager {
 
     SMGType symbolicType = valueTypes.get(symbolicValue);
 
-    outer:
-    if (symbolicType == null) {
-      for (SMGPredicateRelation predicateRelation :
-          Arrays.asList(errorPredicateRelation, pathPredicateRelation)) {
-        for (ExplicitRelation relation : predicateRelation.getExplicitRelations()) {
-          if (relation.getSymbolicValue().equals(symbolicValue)) {
-            symbolicType = relation.getSymbolicSMGType();
-            break outer;
-          }
-        }
-        for (Entry<SMGValuesPair, ImmutableSet<SymbolicRelation>> relationEntry :
-            predicateRelation.getValuesRelations()) {
-          if (relationEntry.getKey().getFirst().equals(symbolicValue)
-              && !relationEntry.getValue().isEmpty()) {
-            SymbolicRelation relation = relationEntry.getValue().asList().get(0);
-            if (relation.getFirstValue().equals(symbolicValue)) {
-              symbolicType = relation.getFirstValSMGType();
-            } else {
-              symbolicType = relation.getSecondValSMGType();
-            }
-            break outer;
-          }
-        }
+    if (symbolicType != null) {
+      return symbolicType;
+    }
+
+    for (SMGPredicateRelation predicateRelation :
+        Arrays.asList(errorPredicateRelation, pathPredicateRelation)) {
+      SymbolicRelation symbolicRelation = predicateRelation.findAnySymbolicRelation(symbolicValue);
+      if (symbolicRelation != null) {
+        return symbolicRelation.getFirstValSMGType();
+      }
+      ExplicitRelation explicitRelation = predicateRelation.findAnyExplicitRelation(symbolicValue);
+      if (explicitRelation != null) {
+        return explicitRelation.getSymbolicSMGType();
       }
     }
-    return symbolicType;
+
+    return null;
   }
 
   private BooleanFormula getExplicitFormulaFromState(UnmodifiableSMGState pState) {
