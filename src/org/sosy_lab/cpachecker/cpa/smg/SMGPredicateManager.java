@@ -280,7 +280,11 @@ public class SMGPredicateManager {
         Arrays.asList(errorPredicateRelation, pathPredicateRelation)) {
       SymbolicRelation symbolicRelation = predicateRelation.findAnySymbolicRelation(symbolicValue);
       if (symbolicRelation != null) {
-        return symbolicRelation.getFirstValSMGType();
+        if (symbolicRelation.getFirstValue().equals(symbolicValue)) {
+          return symbolicRelation.getFirstValSMGType();
+        } else {
+          return symbolicRelation.getSecondValSMGType();
+        }
       }
       ExplicitRelation explicitRelation = predicateRelation.findAnyExplicitRelation(symbolicValue);
       if (explicitRelation != null) {
